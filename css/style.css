@@ -1,0 +1,491 @@
+/* ===========================
+   グローバル設定
+   =========================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Rogue clone default colors: "cbmyg" */
+    --bg-color: #000000;
+    --text-color: #cccccc;
+    /* デフォルト文字色は白/グレー系 */
+    --border-color: #00aa00;
+    --highlight-color: #ffffff;
+
+    --wall-color: #800000;
+    /* EGA brown */
+    --passage-color: #808080;
+    /* gray */
+    --floor-color: #0000ff;
+    /* blue */
+    --player-color: #00ff00;
+    /* green */
+    --monster-color: #ff00ff;
+    /* magenta */
+    --item-color: #ffff00;
+    /* yellow */
+    --gold-color: #ffff00;
+    /* yellow */
+    --trap-color: #ff0000;
+    /* red */
+}
+
+body {
+    font-family: 'Noto Sans Mono', monospace;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.4;
+    overflow: auto;
+    /* コンテンツが大きければスクロールさせる */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    /* 上寄せにする */
+    min-height: 100vh;
+    padding: 1rem;
+    /* 画面端との余白 */
+}
+
+/* ===========================
+   ゲームコンテナ
+   =========================== */
+#game-container {
+    width: auto;
+    /* 中身に合わせて広がる */
+    /* max-width: 1200px;  削除: 幅制限をなくす */
+    height: auto;
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* ===========================
+   画面切り替え
+   =========================== */
+.screen {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===========================
+   タイトル画面
+   =========================== */
+#title-screen {
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+#title-art {
+    color: var(--text-color);
+    text-align: left;
+    font-family: 'Noto Sans Mono', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    white-space: pre;
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0;
+}
+
+/* ===========================
+   ゲーム画面
+   =========================== */
+#game-screen {
+    padding: 0;
+    /* 余白削除 */
+    height: 100%;
+}
+
+/* 左右分割レイアウト */
+#game-layout {
+    display: flex;
+    gap: 2rem;
+    /* パネル間の余白を少し広げる */
+    height: 100%;
+}
+
+#left-panel {
+    flex: 0 0 auto;
+    /* 縮小させない！ */
+    display: flex;
+    flex-direction: column;
+}
+
+#right-panel {
+    width: 300px;
+    background-color: transparent;
+    /* 背景なし */
+    border-left: 1px solid var(--border-color);
+    /* 区切り線だけ左に */
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 0 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-header {
+    color: var(--highlight-color);
+    font-weight: bold;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+/* メッセージログ */
+/* メッセージログ */
+#message-area {
+    /* 背景・枠線を削除 */
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    margin-bottom: 0.5rem;
+    height: 5rem;
+    /* 4行分 (1.2 line-height * 4 = 4.8) */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+#message-log {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#message-log li {
+    line-height: 1.2;
+    /* 行間を詰める */
+    padding: 0;
+}
+
+.current-message {
+    color: var(--highlight-color);
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.old-message {
+    color: var(--text-color);
+    opacity: 0.7;
+    font-size: 1.1rem;
+    /* サイズは変えない */
+}
+
+/* ダンジョン表示 */
+#game-main {
+    flex: 0 0 auto;
+    /* レイアウト固定のためのサイズ指定 (全域表示用) */
+    width: 72rem;
+    height: 45rem;
+    margin-bottom: 0.5rem;
+    background-color: transparent;
+    border: none;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#dungeon-display {
+    line-height: 1.2;
+    letter-spacing: 0.1em;
+    color: var(--text-color);
+    white-space: pre;
+    font-family: 'Noto Sans Mono', monospace;
+    font-size: 1.1rem;
+    /* 固定サイズ(大) */
+}
+
+/* 拡大表示用 */
+
+/* ダンジョン要素の色分け */
+.wall {
+    color: var(--wall-color);
+    font-weight: bold;
+}
+
+.passage {
+    color: var(--passage-color);
+}
+
+.player {
+    color: var(--player-color);
+    font-weight: bold;
+}
+
+.monster {
+    color: var(--monster-color);
+    font-weight: bold;
+}
+
+.item {
+    color: var(--item-color);
+}
+
+.gold {
+    color: var(--gold-color);
+    font-weight: bold;
+}
+
+.floor {
+    color: var(--floor-color);
+}
+
+.door {
+    color: var(--wall-color);
+    font-weight: bold;
+}
+
+.stairs {
+    color: #00ff00;
+    /* green */
+    font-weight: bold;
+}
+
+.target-cursor {
+    background-color: var(--monster-color);
+    color: #ffffff;
+    animation: blink 0.5s step-end infinite alternate;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.8;
+    }
+}
+
+/* ステータスバー */
+#status-bar {
+    background-color: transparent;
+    border: none;
+    /* 枠線削除 */
+    border-top: 1px solid var(--border-color);
+    /* 上に区切り線 */
+    padding: 0.5rem 0;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    /* 折り返しさせない */
+    gap: 2rem;
+    font-size: 1rem;
+}
+
+/* インベントリリスト */
+#inventory-list {
+    list-style: none;
+    overflow-y: auto;
+    flex: 1;
+}
+
+#inventory-list li {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(0, 170, 0, 0.3);
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+/* ===========================
+   メニュー画面
+   =========================== */
+#menu-screen,
+#config-screen {
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.95);
+}
+
+.menu-content {
+    border: 3px solid var(--border-color);
+    padding: 2rem;
+    background-color: var(--bg-color);
+    min-width: 400px;
+}
+
+.menu-content h2 {
+    color: var(--highlight-color);
+    margin-bottom: 1.5rem;
+    text-align: center;
+    font-size: 1.5rem;
+}
+
+#menu-list {
+    list-style: none;
+}
+
+#menu-list li {
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#menu-list li:hover,
+#menu-list li.selected {
+    background-color: var(--border-color);
+    color: var(--bg-color);
+    transform: translateX(10px);
+}
+
+/* ===========================
+   キーコンフィグ画面
+   =========================== */
+#key-config-list {
+    margin-bottom: 1.5rem;
+}
+
+.key-config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.key-config-item label {
+    flex: 1;
+}
+
+.key-config-item button {
+    padding: 0.5rem 1rem;
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-family: 'Noto Sans Mono', monospace;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.key-config-item button:hover {
+    background-color: var(--border-color);
+    color: var(--bg-color);
+}
+
+#config-back {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: transparent;
+    border: 2px solid var(--border-color);
+    color: var(--text-color);
+    font-family: 'Noto Sans Mono', monospace;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#config-back:hover {
+    background-color: var(--border-color);
+    color: var(--bg-color);
+}
+
+/* ===========================
+   レスポンシブ対応
+   =========================== */
+@media (max-width: 768px) {
+    body {
+        font-size: 14px;
+    }
+
+    #dungeon-display {
+        font-size: 0.7rem;
+    }
+
+    #status-bar {
+        font-size: 0.7rem;
+        gap: 0.5rem;
+    }
+
+    .menu-content {
+        min-width: 90%;
+        padding: 1.5rem;
+    }
+}
+
+/* ===========================
+   スクロールバーのスタイル
+   =========================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color);
+}
+
+/* ===========================
+   インベントリ選択・サブメニュー
+   =========================== */
+#inventory-list li.selected {
+    background-color: var(--border-color);
+    color: var(--bg-color);
+    font-weight: bold;
+}
+
+#submenu {
+    position: absolute;
+    background-color: var(--bg-color);
+    border: 2px solid var(--highlight-color);
+    padding: 0;
+    z-index: 1000;
+    min-width: 120px;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+}
+
+#submenu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#submenu-list li {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #333;
+}
+
+#submenu-list li:last-child {
+    border-bottom: none;
+}
+
+#submenu-list li.selected,
+#submenu-list li:hover {
+    background-color: var(--highlight-color);
+    color: var(--bg-color);
+}
+
+#submenu.hidden {
+    display: none;
+}
+
+/* ===========================
+   罠スタイル
+   =========================== */
+.trap {
+    color: var(--trap-color);
+    font-weight: bold;
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RogueC2UI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="title-screen" class="screen active">
+            <pre id="title-art">
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　████┓　　███┓　　███┓　█┓　　█┓█████┓　　　　┃
+┃　　　　█┏━━█┓█┏━━█┓█┏━━┛　█┃　　█┃█┏━━━┛　　　　┃
+┃　　　　████┏┛█┃　　█┃█┃　██┓█┃　　█┃████┓　　　　　┃
+┃　　　　█┏━━█┓█┃　　█┃█┃　　█┃█┃　　█┃█┏━━┛　　　　　┃
+┃　　　　█┃　　█┃┗███┏┛┗███┏┛┗███┏┛█████┓　　　　┃
+┃　　　　┗┛　　┗┛　┗━━┛　　┗━━┛　　┗━━┛　┗━━━━┛　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　Rogue Clone 2 UI　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　Press　ENTER　to　Start　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+            </pre>
+        </div>
+
+        <div id="game-screen" class="screen">
+            <div id="game-layout">
+                <!-- 左パネル: メインゲーム画面 -->
+                <div id="left-panel">
+                    <div id="message-area">
+                        <ul id="message-log">
+                            <li class="old-message"></li>
+                            <li class="old-message"></li>
+                            <li class="old-message"></li>
+                            <li class="current-message">ようこそ、勇敢なる冒険者よ。</li>
+                        </ul>
+                    </div>
+
+                    <div id="game-main">
+                        <pre id="dungeon-display"></pre>
+                    </div>
+
+                    <div id="status-bar">
+                        <span id="status-level">Level: 1</span>
+                        <span id="status-gold">Gold: 0</span>
+                        <span id="status-hp">Hp: 12(12)</span>
+                        <span id="status-str">Str: 16(16)</span>
+                        <span id="status-arm">Arm: 4</span>
+                        <span id="status-exp">Exp: 1/0</span>
+                    </div>
+                </div>
+
+                <!-- 右パネル: インベントリ -->
+                <div id="right-panel">
+                    <div class="panel-header">持ち物</div>
+                    <ul id="inventory-list">
+                        <!-- JSで動的に追加 -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- デバッグ情報オーバーレイ -->
+        <div id="debug-info"
+            style="display:none; position:absolute; bottom:10px; right:10px; z-index: 1000; background:rgba(0,0,0,0.8); color:#0f0; padding:10px; border:1px solid #0f0; font-family:monospace; white-space:pre;">
+        </div>
+    </div>
+
+    <!-- サブメニュー (絶対配置で表示) -->
+    <div id="submenu" class="hidden">
+        <ul id="submenu-list"></ul>
+    </div>
+    </div>
+
+    <div id="menu-screen" class="screen">
+        <div class="menu-content">
+            <h2>メニュー</h2>
+            <ul id="menu-list">
+                <li data-action="items" class="selected">道具</li>
+                <li data-action="ground">足元</li>
+                <li data-action="suspend">中断</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="config-screen" class="screen">
+        <div class="menu-content">
+            <h2>キーコンフィグ</h2>
+            <div id="key-config-list"></div>
+            <button id="config-back">戻る</button>
+        </div>
+    </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/game.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,7 @@
+
+    flopWeapon(item, x, y) {
+        // アイテムをマップ上に配置
+        item.x = x;
+        item.y = y;
+        this.items.push(item);
+    }
