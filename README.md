@@ -6,7 +6,7 @@
 
 ## 📜 About This Project
 
-このプロジェクトは、**スズキイイチロウ氏**による「Rogue Clone II」のオリジナルソースコードを最大限に尊重し、参照させていただきながら開発されました。
+このプロジェクトは、**鈴木維一郎氏**による「Rogue Clone II」のオリジナルソースコードを最大限に尊重し、参照させていただきながら開発されました。
 オリジナル版を作成・公開してくださったことに深く感謝いたします。
 
 - **Original Reference**: [suzukiiichiro/Rogue2.Official](https://github.com/suzukiiichiro/Rogue2.Official)
