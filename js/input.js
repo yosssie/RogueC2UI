@@ -30,7 +30,7 @@ export class InputManager {
 
         // デフォルト設定(SFC風)
         return {
-            // 移動(8方向) - 十字キー
+            // 移動(8方向) - カーソルキー、テンキー
             up: 'ArrowUp',
             down: 'ArrowDown',
             left: 'ArrowLeft',
@@ -41,14 +41,14 @@ export class InputManager {
             downRight: 'PageDown',
 
             // アクション(SFCコントローラー配置)
-            buttonA: 'KeyZ',        // Aボタン: 決定/話す/攻撃
+            buttonA: 'KeyZ',        // Aボタン: 決定/休息/探索
             buttonB: 'KeyX',        // Bボタン: キャンセル
             buttonX: 'KeyA',        // Xボタン: メニュー
-            buttonY: 'KeyS',        // Yボタン: インベントリ
+            buttonY: 'KeyS',        // Yボタン: インベントリ整理
             buttonL: 'KeyQ',        // Lボタン: 特殊攻撃(矢)
-            buttonR: 'KeyW',        // Rボタン: (未定義)
-            select: 'Space',        // セレクト: 足踏み
-            start: 'Enter'          // スタート: タイトル/ポーズ
+            buttonR: 'KeyW',        // Rボタン: 斜め移動(未作成)
+            select: 'Space',        // セレクト: (未定義)
+            start: 'Enter'          // スタート: (未定義)
         };
     }
 
@@ -67,6 +67,19 @@ export class InputManager {
             this.handleSubMenuInput(e);
         } else if (this.game.state === 'targeting') {
             this.handleTargetingInput(e);
+        } else if (this.game.state === 'death_message') {
+            this.handleDeathMessageInput(e);
+        }
+    }
+
+    handleDeathMessageInput(e) {
+        const key = e.code;
+        e.preventDefault();
+
+        // Aボタン(Z)またはEnterで墓石画面へ
+        if (key === this.keyConfig.buttonA || key === 'Enter') {
+            const { monster, cause } = this.game.deathCause;
+            this.game.gameOver(monster, cause);
         }
     }
 

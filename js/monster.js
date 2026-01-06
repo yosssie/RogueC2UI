@@ -63,6 +63,26 @@ export class Monster {
     };
 
     /**
+     * 指定された階層に出現可能なモンスターをランダムに選択
+     * @param {number} floor - 現在の階層
+     * @returns {string|null} - モンスタータイプ ('A'-'Z') または null
+     */
+    static getRandomMonster(floor) {
+        const candidates = [];
+        for (const [type, def] of Object.entries(Monster.definitions)) {
+            if (floor >= def.minLevel && floor <= def.maxLevel) {
+                candidates.push(type);
+            }
+        }
+
+        if (candidates.length === 0) {
+            return null;
+        }
+
+        return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    /**
      * @param {string} type - 'A' to 'Z'
      * @param {number} x 
      * @param {number} y 

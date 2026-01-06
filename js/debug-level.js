@@ -166,4 +166,56 @@ export class DebugLevel {
         }
     }
     isVisible(x, y) { return this.visited[y][x]; }
+
+    // 移動判定 (Level.jsと同じロジック)
+    canMove(x1, y1, x2, y2) {
+        // 範囲外チェック
+        if (!this.isInBounds(x2, y2)) return false;
+
+        // 移動先が歩けない場所ならNG
+        if (!this.isWalkable(x2, y2)) return false;
+
+        // 直線移動（上下左右）は常にOK
+        if (x1 === x2 || y1 === y2) return true;
+
+        // 斜め移動の場合
+        const tile1 = this.getTile(x1, y1);
+        const tile2 = this.getTile(x2, y2);
+
+        // ドアへの斜め入り/出し禁止
+        if (tile1 === '+' || tile2 === '+') {
+            return false;
+        }
+
+        // 角抜けチェック
+        if (!this.isWalkable(x1, y2) || !this.isWalkable(x2, y1)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // 視線チェック (デバッグモードでは常にtrue)
+    isLineOfSight(x1, y1, x2, y2) {
+        return true;
+    }
+
+    // 視線を通すタイルか (デバッグモードでは常にtrue)
+    allowsSight(x, y) {
+        return true;
+    }
+
+    // 全体を見えるようにする
+    revealAll() {
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                this.visited[y][x] = true;
+            }
+        }
+    }
+
+    // placeStairs (デバッグモードでは generate で配置済み)
+    placeStairs() {
+        // 既に generate() で配置済みなので何もしない
+    }
 }

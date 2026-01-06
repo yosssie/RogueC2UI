@@ -36,7 +36,8 @@ class Game {
 
         this.currentFloor = 1;
         this.turnCount = 0;
-        this.debugMode = false; // デバッグモードフラグ
+        this.debugMode = false; // デバッグモードフラグ（タイトル画面用）
+        this.inGameDebugMode = false; // ゲーム中のデバッグモード
 
         this.init();
     }
@@ -346,6 +347,14 @@ class Game {
                 this.showInventory();
                 return;
             case 'debug':
+                // ゲーム中デバッグモード切り替え
+                this.inGameDebugMode = !this.inGameDebugMode;
+                if (this.inGameDebugMode) {
+                    this.level.revealAll(); // 全体を表示
+                    this.display.showMessage('🐛 デバッグモード: ON (壁判定無効、全体表示)');
+                } else {
+                    this.display.showMessage('デバッグモード: OFF');
+                }
                 this.display.toggleDebugMode();
                 this.updateDisplay();
                 return;
@@ -381,9 +390,17 @@ class Game {
         const newY = this.player.y + dy;
 
         // 1. 移動判定 (can_move) (壁、斜め制限)
-        if (!this.level.isInBounds(newX, newY) ||
-            !this.level.canMove(this.player.x, this.player.y, newX, newY)) {
-            return false;
+        // デバッグモード時は壁判定をスキップ
+        if (!this.inGameDebugMode) {
+            if (!this.level.isInBounds(newX, newY) ||
+                !this.level.canMove(this.player.x, this.player.y, newX, newY)) {
+                return false;
+            }
+        } else {
+            // デバッグモード: 範囲外チェックのみ
+            if (!this.level.isInBounds(newX, newY)) {
+                return false;
+            }
         }
 
         // 2. 状態異常チェック (held, bear_trap)
@@ -754,7 +771,7 @@ class Game {
                 const monster = new MonsterClass(type, x, y);
                 // WANDERERフラグなどがあればここで設定するが、デフォルトでOK
                 // Rogueでは湧いたモンスターは WANDERS フラグを持つことが多い
-                monster.addFlag(MonsterClass.FLAGS.WANDERS);
+                monster.setFlag(MonsterClass.FLAGS.WANDERS);
                 this.monsters.push(monster);
                 // this.display.showMessage('気配を感じる...'); // デバッグ用
                 break;
@@ -855,7 +872,7 @@ class Game {
             };
         }
 
-        this.display.renderDungeon(this.level, this.player, this.monsters, this.items, targetInfo, this.trapManager);
+        this.display.renderDungeon(this.level, this.player, this.monsters, this.items, targetInfo, this.trapManager, this.inGameDebugMode);
         this.display.updateStatus(this.player, this.currentFloor);
         this.display.updateInventory(this.player.inventory, this.player);
 
@@ -1522,8 +1539,9 @@ class Game {
                 if (this.player.hp <= 0) {
                     message += ' -> あなたは死にました...';
                     this.display.showMessage(message);
-                    // モンスターに殺された
-                    this.gameOver(attacker, null);
+                    // 死亡メッセージ表示状態に遷移（Aボタン待ち）
+                    this.state = 'death_message';
+                    this.deathCause = { monster: attacker, cause: null };
                     return; // これ以降の処理をスキップ
                 }
             } else {

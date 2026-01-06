@@ -234,7 +234,7 @@ Mon:${nearbyMonsters}`;
         }
     }
 
-    renderDungeon(level, player, monsters, items, targetInfo = null, trapManager = null) {
+    renderDungeon(level, player, monsters, items, targetInfo = null, trapManager = null, debugMode = false) {
         const width = level.width;
         const height = level.height;
         let output = '';
@@ -261,8 +261,8 @@ Mon:${nearbyMonsters}`;
                     char = '@';
                     cssClass = 'player';
                 }
-                // モンスター(プレイヤーの視界内のみ)
-                else if (this.isInPlayerSight(x, y, player, level) && monsters.some(m => {
+                // モンスター(デバッグモード時は全表示、通常時はプレイヤーの視界内のみ)
+                else if ((debugMode || this.isInPlayerSight(x, y, player, level)) && monsters.some(m => {
                     if (m.x !== x || m.y !== y) return false;
                     // 透明チェック (INVISIBLE=0x4)
                     // hasFlagがない場合（古いオブジェクト）は常に見える
@@ -390,11 +390,30 @@ Mon:${nearbyMonsters}`;
             list.appendChild(li);
         });
 
-        // 位置固定 (アイテム欄の左隣)
-        // x座標は無視してCSS的に右寄せ配置
-        submenu.style.left = 'auto';
-        submenu.style.right = '19rem'; // 右パネル幅(18rem) + 余白
-        submenu.style.top = y + 'px';
+        // インベントリリストから選択中のアイテムの位置を取得
+        const inventoryList = document.getElementById('inventory-list');
+        const selectedItem = inventoryList?.querySelector('li.selected');
+        const rightPanel = document.getElementById('right-panel');
+
+        if (selectedItem && rightPanel) {
+            // 選択中のアイテムの位置を取得
+            const itemRect = selectedItem.getBoundingClientRect();
+            const panelRect = rightPanel.getBoundingClientRect();
+
+            // サブメニューをインベントリパネルの左側に配置
+            // パネルの左端から70px右にずらして配置
+            const submenuWidth = 200; // submenu の幅（CSS で定義されている値）
+            submenu.style.left = (panelRect.left - submenuWidth + 70) + 'px';
+            submenu.style.right = 'auto';
+
+            // 選択中のアイテムと同じ高さに配置
+            submenu.style.top = itemRect.top + 'px';
+        } else {
+            // フォールバック: 渡された座標を使用
+            submenu.style.left = 'auto';
+            submenu.style.right = '19rem';
+            submenu.style.top = y + 'px';
+        }
 
         submenu.classList.remove('hidden');
     }
