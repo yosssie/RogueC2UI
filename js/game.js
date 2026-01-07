@@ -130,6 +130,15 @@ class Game {
         this.gameLoop();
     }
 
+    nextLevel() {
+        this.currentFloor++;
+        this.generateFloor();
+        // 画面更新は generateFloor 内では行われない（loop内でupdateDisplayされる）
+        // だがアクションの一部として呼ばれるので手動更新が必要な場合がある
+        this.updateDisplay();
+        this.display.showMessage(`${this.currentFloor}階に降りた。`);
+    }
+
     generateFloor() {
         console.log(`📍 Generating floor ${this.currentFloor}...`);
 
@@ -343,13 +352,19 @@ class Game {
                 actionTaken = this.useItem(action.index);
                 break;
             case 'menu':
-                this.openInventory();
-                return;
-            case 'menu':
                 this.openMenu();
                 return;
             case 'inventory':
+                this.openInventory(); // showInventoryではなくopenInventoryに統一した方が良いが、outlineに従う
+                // showInventoryがあるならそちらを使う
                 this.showInventory();
+                return;
+            case 'stairs':
+                if (this.level.getTile(this.player.x, this.player.y) === '%') {
+                    this.nextLevel();
+                } else {
+                    this.display.showMessage('ここには階段がない。');
+                }
                 return;
             case 'debug':
                 // ゲーム中デバッグモード切り替え
