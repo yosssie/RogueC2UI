@@ -239,6 +239,12 @@ Mon:${nearbyMonsters}`;
         const height = level.height;
         let output = '';
 
+        // 状態異常チェック
+        const isBlind = player.status && player.status.blind > 0;
+        const isHallucinating = player.status && player.status.hallucinating > 0;
+        const hasDetectMonster = player.status && player.status.detectMonster > 0;
+        const hasDetectObjects = player.status && (player.status.detectObjects > 0 || player.status.detectObjects === true);
+
         // 全体を常に描画 (範囲制限ロジックを削除)
         // 拡大時の表示位置合わせはスクロール制御(updateCamera)で行う
 
@@ -250,9 +256,32 @@ Mon:${nearbyMonsters}`;
                 // ターゲットカーソル
                 let isTarget = (targetInfo && targetInfo.x === x && targetInfo.y === y);
 
+                // 盲目チェック: 隣接セルのみ表示 (use.c go_blind)
+                if (isBlind && !debugMode) {
+                    const dx = Math.abs(x - player.x);
+                    const dy = Math.abs(y - player.y);
+                    if (dx > 1 || dy > 1) {
+                        output += ' ';
+                        continue;
+                    }
+                }
+
                 // 視界チェック: 訪れた場所のみ表示
+                // ただし、detectObjects フラグがある場合はアイテムだけは表示
+                const hasDetectObjects = player.status && (player.status.detectObjects > 0 || player.status.detectObjects === true);
                 if (!level.isVisible(x, y)) {
-                    output += ' ';
+                    // アイテム感知フラグがあれば、アイテムだけは表示
+                    if (hasDetectObjects && items.some(i => i.x === x && i.y === y)) {
+                        const item = items.find(i => i.x === x && i.y === y);
+                        char = item.symbol;
+                        cssClass = `item ${item.type} detected`;
+                        if (isTarget) {
+                            cssClass += ' target-cursor';
+                        }
+                        output += `<span class="${cssClass}">${char}</span>`;
+                    } else {
+                        output += ' ';
+                    }
                     continue;
                 }
 
@@ -261,8 +290,8 @@ Mon:${nearbyMonsters}`;
                     char = '@';
                     cssClass = 'player';
                 }
-                // モンスター(デバッグモード時は全表示、通常時はプレイヤーの視界内のみ)
-                else if ((debugMode || this.isInPlayerSight(x, y, player, level)) && monsters.some(m => {
+                // モンスター(デバッグモード時は全表示、モンスター感知時も全表示、通常時はプレイヤーの視界内のみ)
+                else if ((debugMode || hasDetectMonster || this.isInPlayerSight(x, y, player, level)) && monsters.some(m => {
                     if (m.x !== x || m.y !== y) return false;
                     // 透明チェック (INVISIBLE=0x4)
                     // hasFlagがない場合（古いオブジェクト）は常に見える
@@ -272,7 +301,12 @@ Mon:${nearbyMonsters}`;
                     return true;
                 })) {
                     const monster = monsters.find(m => m.x === x && m.y === y);
-                    char = monster.symbol || monster.type || '?';
+                    // 幻覚時はランダムなモンスターシンボル (use.c hallucinate)
+                    if (isHallucinating) {
+                        char = String.fromCharCode(65 + Math.floor(Math.random() * 26)); // A-Z
+                    } else {
+                        char = monster.symbol || monster.type || '?';
+                    }
                     cssClass = 'monster';
                 }
                 // 罠 (trap.c show_traps())
@@ -283,7 +317,13 @@ Mon:${nearbyMonsters}`;
                 // アイテム
                 else if (items.some(i => i.x === x && i.y === y)) {
                     const item = items.find(i => i.x === x && i.y === y);
-                    char = item.symbol;
+                    // 幻覚時はランダムなアイテムシンボル (use.c hallucinate)
+                    if (isHallucinating) {
+                        const symbols = ['!', '?', '/', '=', ')', ']', ':', '*'];
+                        char = symbols[Math.floor(Math.random() * symbols.length)];
+                    } else {
+                        char = item.symbol;
+                    }
                     cssClass = `item ${item.type}`;
                 }
                 // 地形
@@ -333,37 +373,13 @@ Mon:${nearbyMonsters}`;
 
 
     isInPlayerSight(x, y, player, level) {
-        // 1. 隣接セルは常に見える
+        if (level && level.canSee) {
+            return level.canSee(player.x, player.y, x, y);
+        }
+        // フォールバック (Level.js更新前など)
         const dx = Math.abs(x - player.x);
         const dy = Math.abs(y - player.y);
-        if (dx <= 1 && dy <= 1) return true;
-
-        // 2. 同じ部屋にいるなら見える (暗い部屋の実装はまだないので簡易的に部屋なら見える)
-        if (level && level.rooms) {
-            const playerRoom = level.rooms.find(r =>
-                player.x >= r.x && player.x < r.x + r.w &&
-                player.y >= r.y && player.y < r.y + r.h
-            );
-
-            // デバッグ: 最初の呼び出しでログ出力
-            if (x === player.x && y === player.y - 2 && this._debugOnce !== true) {
-                console.log('🔍 Room Debug:', {
-                    playerPos: `(${player.x}, ${player.y})`,
-                    playerRoom: playerRoom ? `Room at (${playerRoom.x}, ${playerRoom.y}) size ${playerRoom.w}x${playerRoom.h}` : 'NOT IN ROOM',
-                    totalRooms: level.rooms.length
-                });
-                this._debugOnce = true;
-            }
-
-            if (playerRoom) {
-                // ターゲット(x, y)も同じ部屋か？
-                if (x >= playerRoom.x && x < playerRoom.x + playerRoom.w &&
-                    y >= playerRoom.y && y < playerRoom.y + playerRoom.h) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return dx <= 1 && dy <= 1;
     }
 
     updateInventoryCursor(index) {
@@ -431,4 +447,37 @@ Mon:${nearbyMonsters}`;
         this.statusArm.textContent = `Arm: ${player.armor}`;
         this.statusExp.textContent = `Exp: ${player.level}/${player.exp}`;
     }
+
+    // 炎エフェクト表示 (Original Rogue flame_broil 準拠)
+    async showFlameEffect(startX, startY, endX, endY, dx, dy, level, player, monsters, items, trapManager, debugMode) {
+        // 軌跡を計算
+        const path = [];
+        let cx = startX + dx;
+        let cy = startY + dy;
+
+        while (cx !== endX || cy !== endY) {
+            path.push({ x: cx, y: cy });
+            cx += dx;
+            cy += dy;
+        }
+
+        // 一時的に炎を表示するための仮想アイテムを作成
+        const flameItems = path.map(pos => ({
+            x: pos.x,
+            y: pos.y,
+            symbol: '~',
+            type: 'flame',
+            getDisplayName: () => '炎'
+        }));
+
+        // 炎を含めて再描画
+        this.renderDungeon(level, player, monsters, [...items, ...flameItems], null, trapManager, debugMode);
+
+        // 50ms待機
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // 元の表示に戻す
+        this.renderDungeon(level, player, monsters, items, null, trapManager, debugMode);
+    }
+
 }

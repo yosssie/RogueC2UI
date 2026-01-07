@@ -121,6 +121,7 @@ export class Monster {
         this.confusedTurns = 0;
         this.sleepTurns = 0;
         this.heldTurns = 0; // 金縛り用
+        this.slowedToggle = false; // SLOWED時の行動スキップ用
     }
 
     hasFlag(flagVal) {
@@ -162,6 +163,12 @@ export class Monster {
             return;
         }
 
+        // STATIONARY (固定) なら動かない
+        // 攻撃は processMonsterAction で別途処理されるため、ここに来るのは移動のみ
+        if (this.hasFlag(Monster.FLAGS.STATIONARY)) {
+            return;
+        }
+
         // ふらふら移動 (FLITS) Check
         // Rogue仕様: 47%の確率でランダム移動してしまう
         if (this.hasFlag(Monster.FLAGS.FLITS) && Math.random() < 0.47) {
@@ -179,45 +186,37 @@ export class Monster {
     }
 
     chasePlayer(player, level, monsters = []) {
-        let dx = player.x - this.x;
-        let dy = player.y - this.y;
+        // プレイヤーに向かって移動
+        const dx = Math.sign(player.x - this.x);
+        const dy = Math.sign(player.y - this.y);
 
-        // 距離を -1, 0, 1 に正規化
-        const signX = (dx > 0) ? 1 : (dx < 0 ? -1 : 0);
-        const signY = (dy > 0) ? 1 : (dy < 0 ? -1 : 0);
-
-        let newX = this.x;
-        let newY = this.y;
-
-        // 斜め移動を優先トライ
-        // Rogueのモンスターは賢く最短ルート(斜め含む)できるなら通る
-        // 単純な貪欲法: 目標方向(signX, signY)が両方あるなら斜めへ
-        if (signX !== 0 && signY !== 0) {
-            if (this.canMoveTo(this.x + signX, this.y + signY, level, monsters, player)) {
-                newX = this.x + signX;
-                newY = this.y + signY;
-            }
-            // 斜めがだめなら、差が大きい方(またはランダム)へ単独移動
-            else if (Math.abs(dx) > Math.abs(dy)) {
-                if (this.canMoveTo(this.x + signX, this.y, level, monsters, player)) newX += signX;
-                else if (this.canMoveTo(this.x, this.y + signY, level, monsters, player)) newY += signY;
-            } else {
-                if (this.canMoveTo(this.x, this.y + signY, level, monsters, player)) newY += signY;
-                else if (this.canMoveTo(this.x + signX, this.y, level, monsters, player)) newX += signX;
+        // まず斜め移動を試みる
+        if (dx !== 0 && dy !== 0) {
+            if (this.canMoveTo(this.x + dx, this.y + dy, level, monsters, player)) {
+                this.x += dx;
+                this.y += dy;
+                return;
             }
         }
-        // 直線移動
-        else if (signX !== 0) {
-            if (this.canMoveTo(this.x + signX, this.y, level, monsters, player)) newX += signX;
-        } else if (signY !== 0) {
-            if (this.canMoveTo(this.x, this.y + signY, level, monsters, player)) newY += signY;
+
+        // 斜めが無理ならX軸優先
+        if (dx !== 0) {
+            if (this.canMoveTo(this.x + dx, this.y, level, monsters, player)) {
+                this.x += dx;
+                return;
+            }
         }
 
-        // 座標更新
-        if (newX !== this.x || newY !== this.y) {
-            this.x = newX;
-            this.y = newY;
+        // Y軸を試す
+        if (dy !== 0) {
+            if (this.canMoveTo(this.x, this.y + dy, level, monsters, player)) {
+                this.y += dy;
+                return;
+            }
         }
+
+        // どちらも無理ならランダム移動
+        this.randomMove(level, monsters);
     }
 
     randomMove(level, monsters = []) {
@@ -228,13 +227,21 @@ export class Monster {
             { dx: -1, dy: 1 }, { dx: 1, dy: 1 }
         ];
 
-        const dir = directions[Math.floor(Math.random() * directions.length)];
-        const newX = this.x + dir.dx;
-        const newY = this.y + dir.dy;
+        // 移動可能なマスをリストアップしてランダム選択
+        const possibleMoves = [];
 
-        if (this.canMoveTo(newX, newY, level, monsters)) {
-            this.x = newX;
-            this.y = newY;
+        for (const dir of directions) {
+            const newX = this.x + dir.dx;
+            const newY = this.y + dir.dy;
+            if (this.canMoveTo(newX, newY, level, monsters)) {
+                possibleMoves.push({ x: newX, y: newY });
+            }
+        }
+
+        if (possibleMoves.length > 0) {
+            const move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+            this.x = move.x;
+            this.y = move.y;
         }
     }
 

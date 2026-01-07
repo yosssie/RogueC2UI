@@ -36,6 +36,7 @@ export class Level {
         this.floor = floor;
         this.tiles = [];
         this.visited = [];
+        this.hiddenObjects = []; // 隠しドア・罠用
         this.rooms = []; // 部屋データ
 
         // グリッド境界 (make_room参照)
@@ -45,14 +46,20 @@ export class Level {
         this.ROW2 = 2 * this.ROW1;
     }
 
+    // 隠しオブジェクト定数
+    static HIDDEN_DOOR = 1;
+    static TRAP = 2; // (予約)
+
     generate() {
         // マップ初期化
         for (let y = 0; y < this.height; y++) {
             this.tiles[y] = [];
             this.visited[y] = [];
+            this.hiddenObjects[y] = [];
             for (let x = 0; x < this.width; x++) {
                 this.tiles[y][x] = ' ';
                 this.visited[y][x] = false;
+                this.hiddenObjects[y][x] = null;
             }
         }
 
@@ -122,7 +129,7 @@ export class Level {
             }
         }
 
-        // 階段配置
+        // 5. 階段配置
         this.placeStairs();
     }
 
@@ -262,8 +269,51 @@ export class Level {
                 break;
         }
 
-        this.tiles[row][col] = '+';
+        // 隠し扉判定 (20%で隠し扉)
+        if (Math.random() < 0.2) {
+            // 見た目を壁にする
+            if (dir === UPWARD || dir === DOWN) {
+                this.tiles[row][col] = '-';
+            } else {
+                this.tiles[row][col] = '|';
+            }
+            this.hiddenObjects[row][col] = Level.HIDDEN_DOOR;
+        } else {
+            this.tiles[row][col] = '+';
+        }
+
         return { row, col };
+    }
+
+    // 周囲を探索して隠し扉を見つける
+    search(x, y) {
+        const messages = [];
+        let found = false;
+
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue; // 足元は除外
+
+                const cx = x + dx;
+                const cy = y + dy;
+
+                if (!this.isInBounds(cx, cy)) continue;
+
+                const hidden = this.hiddenObjects[cy][cx];
+                if (hidden && hidden === Level.HIDDEN_DOOR) {
+                    // 発見判定 (簡易的に40%で発見)
+                    if (Math.random() < 0.4) {
+                        this.tiles[cy][cx] = '+';
+                        this.hiddenObjects[cy][cx] = null;
+                        if (!found) {
+                            messages.push('隠し扉を見つけた！');
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+        return messages;
     }
 
     draw_simple_passage(row1, col1, row2, col2, dir) {
@@ -534,5 +584,26 @@ export class Level {
                 }
             }
         }
+    }
+
+    // 視界判定 (Original Rogue mon_sees 準拠)
+    canSee(x1, y1, x2, y2) {
+        // 1. 隣接セルは常に見える
+        const dx = Math.abs(x1 - x2);
+        const dy = Math.abs(y1 - y2);
+        if (dx <= 1 && dy <= 1) return true;
+
+        // 2. 部屋判定
+        const r1 = this.getRoomAt(x1, y1);
+        const r2 = this.getRoomAt(x2, y2);
+
+        // 両方同じ部屋にいて、かつその部屋が迷路でなければ見える
+        // !(rooms[rn].is_room & R_MAZE)
+        if (r1 && r2 && r1 === r2 && r1.is_room === R_ROOM) {
+            return true;
+        }
+
+        // それ以外は見えない (通路、迷路、異なる部屋)
+        return false;
     }
 }

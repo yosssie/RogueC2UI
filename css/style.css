@@ -489,3 +489,11 @@ body {
     color: var(--trap-color);
     font-weight: bold;
 }
+/* ===========================
+   炎エフェクト (Dragon FLAMES)
+   =========================== */
+.flame-effect {
+    color: #ff4500; /* オレンジレッド */
+    font-weight: bold;
+    text-shadow: 0 0 5px #ff0000;
+}

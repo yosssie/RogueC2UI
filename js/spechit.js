@@ -133,7 +133,9 @@ export class SpecialHit {
     static stealGold(game, monster) {
         if (game.player.gold <= 0 || Math.random() < 0.1) return;
 
-        const amount = Math.floor(Math.random() * 50) + game.player.level * 10;
+        const min = game.level.floor * 10;
+        const max = game.level.floor * 30;
+        const amount = Math.floor(Math.random() * (max - min + 1)) + min;
         const stolen = Math.min(game.player.gold, amount);
 
         game.player.gold -= stolen;

@@ -2,22 +2,24 @@
 // デバッグ用ダンジョン
 // ===========================
 
-export class DebugLevel {
+import { Level } from './level.js';
+
+export class DebugLevel extends Level {
     constructor(width, height) {
-        this.width = 80;
-        this.height = 30;
-        this.tiles = [];
-        this.rooms = [];
-        this.visited = [];
+        super(width || 80, height || 30, 1); // width, height, floor=1でLevel初期化
+        // Level.jsのコンストラクタで既にwidth, height, tiles, rooms, visited, hiddenObjectsが初期化される
     }
 
     generate() {
+        // タイル配列を初期化（Level.jsのgenerateと同じ）
         for (let y = 0; y < this.height; y++) {
             this.tiles[y] = [];
             this.visited[y] = [];
+            this.hiddenObjects[y] = [];
             for (let x = 0; x < this.width; x++) {
                 this.tiles[y][x] = ' ';
                 this.visited[y][x] = false;
+                this.hiddenObjects[y][x] = null;
             }
         }
 
@@ -97,7 +99,9 @@ export class DebugLevel {
                 }
             }
         }
-        this.rooms.push({ x, y, w: width, h: height, id });
+        // Level.jsと同じ形式でroomsに追加（is_room追加）
+        const R_ROOM = 1;
+        this.rooms.push({ x, y, w: width, h: height, is_room: R_ROOM, id });
     }
 
     drawPassage(x1, y1, x2, y2) {
@@ -119,97 +123,6 @@ export class DebugLevel {
                     const t = this.tiles[y][minX];
                     if (t === ' ' || t === '#') this.tiles[y][minX] = '#';
                 }
-            }
-        }
-    }
-
-    getTile(x, y) {
-        if (!this.isInBounds(x, y)) return ' ';
-        return this.tiles[y][x];
-    }
-    isInBounds(x, y) { return x >= 0 && x < this.width && y >= 0 && y < this.height; }
-    isWalkable(x, y) {
-        if (!this.isInBounds(x, y)) return false;
-        const tile = this.tiles[y][x];
-        return tile === '.' || tile === '#' || tile === '+' || tile === '%';
-    }
-    updateVisibility(playerX, playerY) {
-        const room = this.getRoomAt(playerX, playerY);
-        const tile = this.getTile(playerX, playerY);
-        if (room) {
-            this.lightUpRoom(room);
-            if (tile === '+') this.lightPassage(playerX, playerY);
-        } else {
-            this.lightPassage(playerX, playerY);
-        }
-    }
-    getRoomAt(x, y) {
-        for (const room of this.rooms) {
-            if (x >= room.x && x < room.x + room.w && y >= room.y && y < room.y + room.h) return room;
-        }
-        return null;
-    }
-    lightUpRoom(room) {
-        for (let y = room.y; y < room.y + room.h; y++) {
-            for (let x = room.x; x < room.x + room.w; x++) {
-                if (this.isInBounds(x, y)) this.visited[y][x] = true;
-            }
-        }
-    }
-    lightPassage(x, y) {
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (this.isInBounds(nx, ny)) this.visited[ny][nx] = true;
-            }
-        }
-    }
-    isVisible(x, y) { return this.visited[y][x]; }
-
-    // 移動判定 (Level.jsと同じロジック)
-    canMove(x1, y1, x2, y2) {
-        // 範囲外チェック
-        if (!this.isInBounds(x2, y2)) return false;
-
-        // 移動先が歩けない場所ならNG
-        if (!this.isWalkable(x2, y2)) return false;
-
-        // 直線移動（上下左右）は常にOK
-        if (x1 === x2 || y1 === y2) return true;
-
-        // 斜め移動の場合
-        const tile1 = this.getTile(x1, y1);
-        const tile2 = this.getTile(x2, y2);
-
-        // ドアへの斜め入り/出し禁止
-        if (tile1 === '+' || tile2 === '+') {
-            return false;
-        }
-
-        // 角抜けチェック
-        if (!this.isWalkable(x1, y2) || !this.isWalkable(x2, y1)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    // 視線チェック (デバッグモードでは常にtrue)
-    isLineOfSight(x1, y1, x2, y2) {
-        return true;
-    }
-
-    // 視線を通すタイルか (デバッグモードでは常にtrue)
-    allowsSight(x, y) {
-        return true;
-    }
-
-    // 全体を見えるようにする
-    revealAll() {
-        for (let y = 0; y < this.height; y++) {
-            for (let x = 0; x < this.width; x++) {
-                this.visited[y][x] = true;
             }
         }
     }

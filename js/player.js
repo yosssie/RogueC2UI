@@ -45,6 +45,7 @@ export class Player {
             // 以下はフラグまたは特殊管理
             held: false,      // 金縛り (Flytrap等)
             detectMonster: false, // モンスター感知 (ポーション等)
+            detectObjects: false, // アイテム感知 (ポーション等)
             seeInvisible: false   // 透明視認
         };
     }
@@ -101,6 +102,14 @@ export class Player {
         if (this.str < 1) this.str = 1;
     }
 
+    // 混乱状態にする
+    confuse() {
+        if (this.status.confused === 0) {
+            // 12-22ターン (use.c unconfuse)
+            this.status.confused = 12 + Math.floor(Math.random() * 11);
+        }
+    }
+
     updateHunger(amount = 1) {
         this.hunger -= amount;
 
@@ -121,9 +130,18 @@ export class Player {
         return null;
     }
 
-    takeDamage(damage) {
-        // 防御力で軽減
-        const actualDamage = Math.max(1, damage - this.armor);
+    // Original Rogue (v5.4.4) Logic: AC * 3 % reduction
+    getActualDamage(damage) {
+        const reductionPercent = this.armor * 3;
+        const reduction = Math.floor(damage * reductionPercent / 100);
+        return Math.max(1, damage - reduction);
+    }
+
+    takeDamage(damage, ignoreArmor = false) {
+        let actualDamage = damage;
+        if (!ignoreArmor) {
+            actualDamage = this.getActualDamage(damage);
+        }
         this.hp -= actualDamage;
 
         if (this.hp < 0) this.hp = 0;

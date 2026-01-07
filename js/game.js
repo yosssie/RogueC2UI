@@ -201,6 +201,8 @@ class Game {
                     this.monsters.push(monster);
                 }
             });
+
+
         } else {
             // 通常モード: ランダム配置 (階層レベル依存)
             // object.c put_mons: n = get_rand(4, 6)
@@ -321,12 +323,15 @@ class Game {
                 break;
             case 'rest_and_search':
                 // 休憩 + 探索 (Aボタン用統合アクション)
-                this.trapManager.search(1, false);
-                return; // search内でprocessTurnを呼ぶ
+                // 移動せずに休憩し、ついでに探索も行う (便利な独自機能)
+                this.search();
+                actionTaken = true; // ターンを進める
+                break;
             case 'search':
                 // 探索 (trap.c search()) - 隠し扉・罠を探す
-                this.trapManager.search(1, false);
-                return; // search内でprocessTurnを呼ぶ
+                this.search();
+                actionTaken = true; // ターンを進める
+                break;
             case 'dash':
                 // ダッシュ: 連続移動 (move.c multiple_move_rogue())
                 if (action.dx !== undefined && action.dy !== undefined) {
@@ -361,7 +366,11 @@ class Game {
         }
 
         if (actionTaken) {
-            this.processTurn();
+            // 加速時の処理 (use.c haste_self)
+            // 加速中は2回行動できる = モンスターが1回行動する間にプレイヤーが2回行動
+            // 実装方法: 奇数ターンはモンスター行動なし
+            const isFast = this.player.status && this.player.status.fast > 0;
+            this.processTurn(isFast);
         }
     }
 
@@ -639,69 +648,142 @@ class Game {
         const t = this.level.getTile(x, y);
         return t === '#' || t === '+';
     }
-    processTurn() {
+
+    // モンスターの1回分の行動処理
+    async processMonsterAction(monster) {
+        const MonsterClass = Monster; // クラス参照用
+
+        // プレイヤーが死んでいたら中止
+        if (this.player.hp <= 0) return;
+        // モンスターが死んでいたら中止
+        if (monster.hp <= 0) return;
+
+        // プレイヤーに隣接しているかチェック
+        const dx = Math.abs(monster.x - this.player.x);
+        const dy = Math.abs(monster.y - this.player.y);
+
+        // 睡眠判定 (ASLEEP)
+        if (monster.hasFlag(MonsterClass.FLAGS.ASLEEP)) {
+            // 部屋に入ったら起きる / 隣接したら起きる
+            const mRoom = this.level.getRoomAt(monster.x, monster.y);
+            const pRoom = this.level.getRoomAt(this.player.x, this.player.y);
+            const sameRoom = (mRoom && pRoom && mRoom === pRoom);
+            const adjacent = (dx <= 1 && dy <= 1);
+
+            if (sameRoom || adjacent) {
+                // 起きる
+                monster.removeFlag(MonsterClass.FLAGS.ASLEEP);
+                // "Xは目を覚ました" メッセージは省略
+            } else {
+                // 寝ているので行動終了
+                return;
+            }
+        }
+
+        // 攻撃判定
+        // 斜め攻撃もありなら <= 1 で判定 (dx<=1 && dy<=1 && !(dx=0,dy=0))
+        if (dx <= 1 && dy <= 1 && (dx !== 0 || dy !== 0)) {
+            // 攻撃
+            this.resolveAttack(monster, this.player);
+        } else {
+            // 特殊行動: 混乱 (Medusa) - 離れている時のみ
+            if (monster.hasFlag(MonsterClass.FLAGS.CONFUSES) && this.mConfuse(monster)) {
+                return;
+            }
+
+            // 特殊行動: 炎 (Dragon) - 離れていて直線上にいる場合
+            if (monster.hasFlag(Monster.FLAGS.FLAMES) && await this.mFlames(monster)) {
+                monster.actionPoints--;
+                return;
+            }
+
+            // 金貨探索 (Leprechaun)
+            if (monster.hasFlag(Monster.FLAGS.SEEKS_GOLD) && this.mSeekGold(monster)) {
+                monster.actionPoints--;
+                return;
+            }
+
+            // 以下、通常の移動などの処理
+            // 周囲にプレイヤーがいなければ、あるいは特殊行動もしなければ移動
+            // プレイヤーが見えているなら追跡、そうでなければ徘徊
+            // ... (既存コード) (他のモンスターとの衝突判定を渡す)
+            monster.act(this.player, this.level, this.monsters);
+        }
+    }
+
+    async processTurn(skipMonsters = false) {
         this.turnCount++;
 
-        // モンスターの行動
-        for (const monster of this.monsters) {
-            // ステータス持続時間処理
-            if (monster.sleepTurns > 0) {
-                monster.sleepTurns--;
-                if (monster.sleepTurns <= 0) {
-                    monster.removeFlag(Monster.FLAGS.ASLEEP);
-                    // this.display.showMessage(`${monster.name}は目を覚ました！`); // うるさいので省略可
+        // 加速時はモンスターの行動をスキップ (use.c haste_self)
+        if (!skipMonsters) {
+            // モンスターの行動
+            // 途中で死んだモンスターなどでズレないようコピーで回す
+            for (const monster of [...this.monsters]) {
+                const MonsterClass = Monster;
+
+                // --- ステータス持続時間処理 (1ターン1回) ---
+                if (monster.sleepTurns > 0) {
+                    monster.sleepTurns--;
+                    if (monster.sleepTurns <= 0) {
+                        monster.removeFlag(MonsterClass.FLAGS.ASLEEP);
+                        monster.removeFlag(MonsterClass.FLAGS.NAPPING);
+                        // this.display.showMessage(`${monster.name}は目を覚ました！`);
+                    }
                 }
-            }
-            if (monster.confusedTurns > 0) {
-                monster.confusedTurns--;
-                if (monster.confusedTurns <= 0) {
-                    monster.removeFlag(Monster.FLAGS.CONFUSED);
-                    this.display.showMessage(`${monster.name}の混乱は解けた。`);
+                if (monster.confusedTurns > 0) {
+                    monster.confusedTurns--;
+                    if (monster.confusedTurns <= 0) {
+                        monster.removeFlag(MonsterClass.FLAGS.CONFUSED);
+                        this.display.showMessage(`${monster.name}の混乱は解けた。`);
+                    }
                 }
-            }
 
-            // プレイヤーが死んでいたらモンスターの行動を中止
-            if (this.player.hp <= 0) break;
+                // プレイヤーが死んでいたら中止
+                if (this.player.hp <= 0) break;
 
-            // プレイヤーに隣接しているかチェック
-            const dx = Math.abs(monster.x - this.player.x);
-            const dy = Math.abs(monster.y - this.player.y);
-            const isAdjacent = (dx <= 1 && dy <= 1);
+                // --- 行動処理 (HASTED/SLOWED/FLIES反映) ---
+                let actionCount = 1;
+                let extraAction = false;
 
-            // 視界チェック (簡易)
-            const canSee = this.level.isLineOfSight(monster.x, monster.y, this.player.x, this.player.y);
-
-            // 睡眠判定 (ASLEEP)
-            if (monster.hasFlag(Monster.FLAGS.ASLEEP)) {
-                // 部屋に入ったら起きる (room check)
-                // 隣接したら起きる (dx<=1 && dy<=1)
-                // 攻撃を受けたら起きる (resolveAttack内で処理すべきだが、ここでは自然覚醒のみ)
-
-                const mRoom = this.level.getRoomAt(monster.x, monster.y);
-                const pRoom = this.level.getRoomAt(this.player.x, this.player.y);
-
-                const sameRoom = (mRoom && pRoom && mRoom === pRoom);
-                const adjacent = (dx <= 1 && dy <= 1);
-
-                if (sameRoom || adjacent) {
-                    // 起きる
-                    monster.flags &= ~Monster.FLAGS.ASLEEP;
-                    // 初回のみメッセージでもいいが、うるさいので省略するか、部屋に入った時だけ出すか
-                    // Rogueでは "The <monster> wakes up."
-                    // this.display.showMessage(`${monster.name}が目を覚ました！`); 
-                } else {
-                    // 寝ているのでこのターンは行動しない
-                    continue;
+                if (monster.hasFlag(MonsterClass.FLAGS.HASTED)) {
+                    actionCount = 2;
+                } else if (monster.hasFlag(MonsterClass.FLAGS.SLOWED)) {
+                    monster.slowedToggle = !monster.slowedToggle;
+                    if (monster.slowedToggle) {
+                        actionCount = 0; // 今回はスキップ
+                    }
+                } else if (monster.hasFlag(MonsterClass.FLAGS.FLIES) &&
+                    !monster.hasFlag(MonsterClass.FLAGS.ASLEEP) &&
+                    !monster.hasFlag(MonsterClass.FLAGS.NAPPING)) {
+                    // 飛行 (FLIES): プレイヤーと離れている場合は追加移動を行う
+                    // ただし、追加移動後にプレイヤーに隣接した場合は、通常行動（攻撃）を行わない
+                    const distCheck = Math.max(Math.abs(monster.x - this.player.x), Math.abs(monster.y - this.player.y));
+                    if (distCheck >= 2) {
+                        extraAction = true;
+                    }
                 }
-            }
 
-            // 斜め攻撃もありなら <= 1 で判定 (dx<=1 && dy<=1 && !(dx=0,dy=0))
-            if (dx <= 1 && dy <= 1 && (dx !== 0 || dy !== 0)) {
-                // 攻撃
-                this.resolveAttack(monster, this.player);
-            } else {
-                // 移動 (他のモンスターとの衝突判定を渡す)
-                monster.act(this.player, this.level, this.monsters);
+                if (extraAction) {
+                    await this.processMonsterAction(monster);
+                    if (this.player.hp <= 0 || monster.hp <= 0) {
+                        // 死亡などで終了した場合は以降の行動キャンセル
+                        actionCount = 0;
+                    } else {
+                        // 移動後の再チェック
+                        const distClick = Math.max(Math.abs(monster.x - this.player.x), Math.abs(monster.y - this.player.y));
+                        if (distClick < 2) {
+                            // 隣接してしまった -> 攻撃権なし（通常行動スキップ）
+                            actionCount = 0;
+                        }
+                        // まだ離れている -> 通常行動へ（2回目の移動になる）
+                    }
+                }
+
+                for (let i = 0; i < actionCount; i++) {
+                    await this.processMonsterAction(monster);
+                    // 行動により死亡している可能性チェック
+                    if (this.player.hp <= 0 || monster.hp <= 0) break;
+                }
             }
         }
 
@@ -780,6 +862,63 @@ class Game {
         }
     }
 
+    // monster.c create_monster() - 怪物召喚の巻物用
+    createMonster() {
+        const MonsterClass = Monster;
+
+        // プレイヤー周囲9マスをランダムに探索 (monster.c line 591-605)
+        const directions = [
+            { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
+            { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 },
+            { x: 0, y: 0 }  // プレイヤー位置も含む (後でスキップ)
+        ];
+
+        // ランダムな順序で探索
+        const shuffled = directions.sort(() => Math.random() - 0.5);
+
+        for (const dir of shuffled) {
+            const x = this.player.x + dir.x;
+            const y = this.player.y + dir.y;
+
+            // プレイヤー位置はスキップ
+            if (x === this.player.x && y === this.player.y) {
+                continue;
+            }
+
+            // 範囲外チェック
+            if (!this.level.isInBounds(x, y)) {
+                continue;
+            }
+
+            // 配置可能チェック: 床・通路・階段・ドア、かつモンスターなし
+            const tile = this.level.getTile(x, y);
+            const hasMonster = this.monsters.some(m => m.x === x && m.y === y);
+
+            if (!hasMonster && (tile === '.' || tile === '#' || tile === '%' || tile === '+')) {
+                // モンスター生成
+                const type = MonsterClass.getRandomMonster(this.currentFloor);
+                if (!type) continue;
+
+                const monster = new MonsterClass(type, x, y);
+
+                // WANDERS または WAKENS フラグがあれば起こす (monster.c line 610-611)
+                if (monster.hasFlag(MonsterClass.FLAGS.WANDERS) ||
+                    monster.hasFlag(MonsterClass.FLAGS.WAKENS)) {
+                    monster.removeFlag(MonsterClass.FLAGS.ASLEEP);
+                }
+
+                this.monsters.push(monster);
+                this.updateDisplay();
+                this.display.showMessage('モンスターが現れた！');
+                return true;
+            }
+        }
+
+        // 配置できなかった (monster.c line 614)
+        this.display.showMessage('遠くで苦悶の叫び声が聞こえた。');
+        return false;
+    }
+
     updatePlayerStatus() {
         // 指輪の筋力ボーナス反映
         const strBonus = this.ringManager.getStrengthBonus();
@@ -844,9 +983,29 @@ class Game {
         if (typeof status.detectMonster === 'number' && status.detectMonster > 0) {
             status.detectMonster--;
         }
+
+        // アイテム感知 (ポーション) - メッセージは出さないが効果切れ
+        if (typeof status.detectObjects === 'number' && status.detectObjects > 0) {
+            status.detectObjects--;
+        }
     }
 
     // combatメソッドは廃止(resolveAttackに統合)
+
+    // 探索 (search.c do_search)
+    search() {
+        // 隠し扉探索
+        const messages = this.level.search(this.player.x, this.player.y);
+        for (const msg of messages) {
+            this.display.showMessage(msg);
+        }
+
+        // 罠探索
+        this.trapManager.search(1, false);
+
+        // ターン経過
+        this.processTurn();
+    }
 
     pickupItem() {
         const item = this.items.find(i => i.x === this.player.x && i.y === this.player.y);
@@ -1083,7 +1242,6 @@ class Game {
                     this.closeInventory();
                     this.processTurn();
                 }
-                break;
                 break;
             case 'throw':
                 this.closeSubMenu();
@@ -1430,12 +1588,160 @@ class Game {
         this.items.push(item);
     }
 
+    // 混乱攻撃 (Medusa)
+    // 混乱攻撃 (Medusa)
+    mConfuse(monster) {
+        // 視線チェック: Rogue仕様 (同じ部屋かつ暗くない、または隣接)
+        if (!this.level.canSee(monster.x, monster.y, this.player.x, this.player.y)) {
+            return false;
+        }
+
+        // 45%の確率で能力を失う（不発＆今後も使えない）
+        if (Math.random() < 0.45) {
+            monster.removeFlag(Monster.FLAGS.CONFUSES);
+            return false;
+        }
+
+        // 残りのうち55%の確率で発動（能力失う＆混乱発動）
+        // つまり全体から見て 0.55 * 0.55 = 30.25%
+        if (Math.random() < 0.55) {
+            monster.removeFlag(Monster.FLAGS.CONFUSES);
+            this.display.showMessage(`${monster.name}の視線があなたを混乱させた！`);
+            this.display.showMessage('あなたは混乱したようだ。');
+            this.player.confuse();
+            return true; // 行動終了
+        }
+
+        return false;
+    }
+
+    // 炎攻撃 (Dragon)
+    async mFlames(monster) {
+
+        // 50% で不発
+        if (Math.random() < 0.5) return false;
+
+        // 視線チェック
+        // Rogue仕様: 同じ部屋かつ暗くない、または隣接
+        if (!this.level.canSee(monster.x, monster.y, this.player.x, this.player.y)) {
+            return false;
+        }
+
+        // 距離チェック (7マス以内)
+        if (Math.abs(monster.x - this.player.x) > 7 || Math.abs(monster.y - this.player.y) > 7) {
+            return false;
+        }
+
+        // 直線チェック
+        const dx = Math.sign(this.player.x - monster.x);
+        const dy = Math.sign(this.player.y - monster.y);
+
+        if (dx !== 0 && dy !== 0 && Math.abs(this.player.x - monster.x) !== Math.abs(this.player.y - monster.y)) {
+            return false; // 直線でも対角線でもない
+        }
+
+        // 間に障害物がないかチェック (自分とプレイヤーは除く)
+        let cx = monster.x + dx;
+        let cy = monster.y + dy;
+        while (cx !== this.player.x || cy !== this.player.y) {
+            if (!this.level.allowsSight(cx, cy)) {
+                return false; // 壁など
+            }
+            cx += dx;
+            cy += dy;
+        }
+
+        // 炎のエフェクト表示 (隣接していない場合のみ)
+        const adjacent = Math.abs(monster.x - this.player.x) <= 1 && Math.abs(monster.y - this.player.y) <= 1;
+        if (!adjacent) {
+            await this.display.showFlameEffect(monster.x, monster.y, this.player.x, this.player.y, dx, dy,
+                this.level, this.player, this.monsters, this.items, this.trapManager, this.debugMode);
+        }
+
+        // 攻撃実行 (isFlame: true)
+        this.resolveAttack(monster, this.player, { isFlame: true });
+        return true;
+    }
+
+    // 金貨を追う行動 (SEEKS_GOLD - Leprechaun)
+    mSeekGold(monster) {
+        // 部屋にいるか？
+        const room = this.level.getRoomAt(monster.x, monster.y);
+        if (!room) return false;
+
+        // 同じ部屋にある金貨を探す
+        // その上にモンスターがいないこと（自分は除く）
+        const goldItem = this.items.find(item => {
+            return item.type === 'gold' &&
+                item.x >= room.x && item.x < room.x + room.w &&
+                item.y >= room.y && item.y < room.y + room.h &&
+                !this.monsters.some(m => m !== monster && m.x === item.x && m.y === item.y);
+        });
+
+        if (!goldItem) return false; // 金貨なし
+
+        // 金貨が見つかった
+
+        // 既に金貨の上にいる？
+        if (monster.x === goldItem.x && monster.y === goldItem.y) {
+            // 眠る & 金貨探索フラグ削除
+            monster.addFlag(Monster.FLAGS.ASLEEP);
+            monster.removeFlag(Monster.FLAGS.SEEKS_GOLD);
+            return true;
+        }
+
+        // 金貨に向かって移動
+        const dx = Math.sign(goldItem.x - monster.x);
+        const dy = Math.sign(goldItem.y - monster.y);
+
+        let moved = false;
+
+        // まず斜め移動を試みる
+        if (dx !== 0 && dy !== 0) {
+            if (monster.canMoveTo(monster.x + dx, monster.y + dy, this.level, this.monsters, this.player)) {
+                monster.x += dx;
+                monster.y += dy;
+                moved = true;
+            }
+        }
+
+        // 斜めが無理ならX軸優先
+        if (!moved && dx !== 0) {
+            if (monster.canMoveTo(monster.x + dx, monster.y, this.level, this.monsters, this.player)) {
+                monster.x += dx;
+                moved = true;
+            }
+        }
+
+        // Y軸を試す
+        if (!moved && dy !== 0) {
+            if (monster.canMoveTo(monster.x, monster.y + dy, this.level, this.monsters, this.player)) {
+                monster.y += dy;
+                moved = true;
+            }
+        }
+
+        // 移動後、金貨の上なら寝る設定
+        if (moved && monster.x === goldItem.x && monster.y === goldItem.y) {
+            monster.addFlag(Monster.FLAGS.ASLEEP);
+            monster.removeFlag(Monster.FLAGS.SEEKS_GOLD);
+        }
+
+        return moved;
+    }
+
     // 戦闘解決 (hit.c / fight.c 再現)
-    resolveAttack(attacker, defender) {
+    resolveAttack(attacker, defender, options = {}) {
+        // プレイヤーの攻撃なら、相手のSEEKS_GOLD解除 (Leprechaunは怒って反撃してくる)
+        if (attacker === this.player && defender instanceof Monster && defender.hasFlag(Monster.FLAGS.SEEKS_GOLD)) {
+            defender.removeFlag(Monster.FLAGS.SEEKS_GOLD);
+        }
+
         let hitChance = 0;
         let damage = 0;
         let message = '';
         const isPlayerAttacking = (attacker === this.player);
+        const isFlame = options.isFlame || false;
 
         if (isPlayerAttacking) {
             // --- プレイヤーの攻撃 (rogue_hit) ---
@@ -1509,6 +1815,11 @@ class Game {
             // 標準的なモンスター命中率を60%と仮定
             hitChance = 60 - (this.player.level * 2);
 
+            // 炎の場合: 命中率減少 (hit.c) -> Originalにはないので削除
+            // if (isFlame) {
+            //     hitChance -= this.player.level;
+            // }
+
             // ACによる回避 (RogueのACは命中率にも影響するが、Web版はダメージ軽減に使っているので、ここでは簡易的に)
             // プレイヤーのアーマーが強いほど当たりにくいボーナスを少し入れる
             hitChance -= (this.player.armor * 2);
@@ -1519,19 +1830,26 @@ class Game {
                 // attacker.damageは "1d6" のような文字列
                 damage = this.parseDice(attacker.damage);
 
-                // 4. プレイヤーのダメージ軽減 (Web版Armor仕様)
-                // takeDamage内で処理されるが、メッセージ用に計算済みを知りたい
-                // Player.takeDamageを呼ぶ。
+                // 4. プレイヤーのダメージ軽減
+                // 炎攻撃の場合、まずAC値をそのまま減算する (Original Rogue logic)
+                if (isFlame) {
+                    damage = Math.max(1, damage - this.player.armor);
+                }
 
-                // ここでメッセージを出す前にtakeDamageを呼ぶとHP減る。
-                // メッセージは呼び出し元で表示するか、ここで表示するか。
-                // プレイヤーは複数回攻撃受けるので、ログが流れる。
+                // 表示用ダメージ計算
+                let displayDamage = damage;
+                if (!isFlame) {
+                    // 通常攻撃の場合はアーマー軽減率を適用した値を表示
+                    displayDamage = this.player.getActualDamage(damage);
+                }
 
-                // Player.takeDamageは `damage - this.armor`
-                const actualDamage = Math.max(1, damage - this.player.armor);
+                if (isFlame) {
+                    this.display.showMessage(`${attacker.name}の炎があなたを包んだ！(${displayDamage}ダメージ)`);
+                } else {
+                    this.display.showMessage(`${attacker.name}の攻撃！(${displayDamage}ダメージ)`);
+                }
 
-                this.display.showMessage(`${attacker.name}の攻撃！(${actualDamage}ダメージ)`);
-                this.player.takeDamage(damage); // Player側で軽減計算
+                this.player.takeDamage(damage, isFlame); // 炎の場合はアーマー軽減(AC*3%)を無視(既に減算済み)
 
                 // 特殊攻撃判定
                 SpecialHit.check(this, attacker);
@@ -1545,7 +1863,11 @@ class Game {
                     return; // これ以降の処理をスキップ
                 }
             } else {
-                message = `${attacker.name}の攻撃をかわした！`;
+                if (isFlame) {
+                    message = `${attacker.name}の炎は狙いを外した。`;
+                } else {
+                    message = `${attacker.name}の攻撃をかわした！`;
+                }
             }
         }
 

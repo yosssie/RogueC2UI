@@ -327,17 +327,18 @@ export class Item {
         const status = player.status;
         switch (this.id) {
             case 'potion_heal':
-                player.heal(this.value);
+                // use.c potion_heal(0) - 回復薬
+                this.potionHeal(player, game, false);
                 return '体力が回復した。';
             case 'potion_extra_heal':
-                player.heal(this.value);
+                // use.c potion_heal(1) - 大回復薬
+                this.potionHeal(player, game, true);
                 return '体力が大きく回復した。';
             case 'potion_gain_str':
-                if (player.str < player.maxStr) {
-                    player.str = player.maxStr;
-                } else {
-                    player.maxStr++;
-                    player.str = player.maxStr;
+                // use.c INCREASE_STRENGTH: str++
+                player.str++;
+                if (player.str > player.maxStr) {
+                    player.maxStr = player.str;
                 }
                 return '筋肉がもりもりしてきた！';
             case 'potion_restore_str':
@@ -350,12 +351,19 @@ export class Item {
                 return 'これはうまい！';
             case 'potion_poison':
                 {
-                    // 毒を防ぐ指輪チェック
+                    // use.c POISON
                     if (game.ringManager && game.ringManager.hasSustainStrength()) {
                         return '薬を飲んだが、何事も起きなかった。';
                     }
                     const loss = Math.floor(Math.random() * 3) + 1;
                     player.str = Math.max(1, player.str - loss);
+
+                    // 幻覚も治す (use.c line 99-101)
+                    if (status.hallucinating > 0) {
+                        status.hallucinating = 0;
+                        game.display.showMessage('周りのものがはっきり見えるようになった。');
+                    }
+
                     return '毒が回った！';
                 }
             case 'potion_raise_level':
@@ -368,31 +376,105 @@ export class Item {
                 game.display.showMessage(`レベル ${player.level} にようこそ。`);
                 return '急に気分がよくなった。';
             case 'potion_blindness':
-                status.blind += Math.floor(Math.random() * 300) + 250;
+                // use.c BLINDNESS: 500-800ターン
+                status.blind += Math.floor(Math.random() * 300) + 500;
                 return '目の前が暗くなった！';
             case 'potion_hallucination':
-                status.hallucinating += Math.floor(Math.random() * 300) + 250;
+                // use.c HALLUCINATION: 500-800ターン
+                status.hallucinating += Math.floor(Math.random() * 300) + 500;
                 return '何だかサイケデリックな気分だ！';
             case 'potion_detect_monster':
                 status.detectMonster = Math.floor(Math.random() * 300) + 250;
                 return '怪物の気配を感じる。';
             case 'potion_detect_objects':
-                return '変な味がした。（アイテム感知は未実装）';
+                status.detectObjects = Math.floor(Math.random() * 300) + 250;
+                game.updateDisplay();
+                return 'アイテムの気配を感じる。';
             case 'potion_confusion':
                 status.confused += Math.floor(Math.random() * 10) + 12;
                 return '頭がくらくらする...';
             case 'potion_levitation':
-                status.levitate += Math.floor(Math.random() * 20) + 15;
+                // use.c LEVITATION: 15-30ターン
+                status.levitate += Math.floor(Math.random() * 15) + 15;
+                // 金縛りと罠から解放 (use.c line 137)
+                status.held = false;
                 return '体が軽くなった！';
             case 'potion_haste_self':
-                status.fast += Math.floor(Math.random() * 6) + 4;
+                // use.c HASTE_SELF: 11-21ターン、奇数にする
+                let hasteTurns = Math.floor(Math.random() * 10) + 11;
+                if (hasteTurns % 2 === 0) {
+                    hasteTurns++;
+                }
+                status.fast += hasteTurns;
                 return '動きが速くなった気がする！';
             case 'potion_see_invisible':
+                // use.c SEE_INVISIBLE
                 status.seeInvisible = Math.floor(Math.random() * 300) + 250;
+
+                // 盲目も治す (use.c line 268-270)
+                if (status.blind > 0) {
+                    status.blind = 0;
+                    game.display.showMessage('目が見えるようになった。');
+                }
+
                 game.updateDisplay();
                 return '目がちかちかする。';
             default:
                 return '変な味がした。';
+        }
+    }
+
+    // use.c potion_heal() の移植
+    potionHeal(player, game, extra) {
+        // 経験値分回復 (use.c line 523)
+        player.hp += player.level;
+
+        // 現在HP/最大HPの割合を計算 (use.c line 525)
+        const ratio = Math.floor(player.hp * 100 / player.maxHp);
+
+        if (ratio >= 100) {
+            // 満タン以上: 最大HPを増やす (use.c line 527-530)
+            player.maxHp += (extra ? 2 : 1);
+            player.hp = player.maxHp;
+        } else if (ratio >= 90) {
+            // 90%以上: extra なら最大HP+1 (use.c line 531-534)
+            player.maxHp += (extra ? 1 : 0);
+            player.hp = player.maxHp;
+        } else {
+            // 90%未満: 割合に応じて回復 (use.c line 535-546)
+            let healRatio = ratio < 33 ? 33 : ratio;
+            if (extra) {
+                healRatio += healRatio; // 2倍
+            }
+            const add = Math.floor(healRatio * (player.maxHp - player.hp) / 100);
+            player.hp += add;
+            if (player.hp > player.maxHp) {
+                player.hp = player.maxHp;
+            }
+        }
+
+        // 盲目を治す (use.c line 548-550)
+        if (player.status.blind > 0) {
+            player.status.blind = 0;
+            game.display.showMessage('目が見えるようになった。');
+        }
+
+        // 混乱を治す/軽減 (use.c line 551-555)
+        if (player.status.confused > 0) {
+            if (extra) {
+                player.status.confused = 0;
+            } else {
+                player.status.confused = Math.floor(player.status.confused / 2) + 1;
+            }
+        }
+
+        // 幻覚を治す/軽減 (use.c line 556-560)
+        if (player.status.hallucinating > 0) {
+            if (extra) {
+                player.status.hallucinating = 0;
+            } else {
+                player.status.hallucinating = Math.floor(player.status.hallucinating / 2) + 1;
+            }
         }
     }
 
@@ -410,12 +492,12 @@ export class Item {
                 }
                 return '何も起こらなかった。';
             case 'scroll_create_monster':
-                // 周囲にモンスター生成
-                // 簡易実装: ランダムな位置ではなく、プレイヤー周辺
-                // spawnMonsterは引数なしだとランダム生成されるか？ Game.jsを確認
-                // spawnMonsters() ではなく spawnMonster() 単体メソッドがないかも。
-                // 仕方ないのでメッセージだけ
-                return 'モンスターの気配が強まった（未実装）。';
+                // monster.c create_monster() (use.c line 368-369)
+                if (game && game.createMonster) {
+                    game.createMonster();
+                    return ''; // メッセージは createMonster 内で表示
+                }
+                return '何も起こらなかった。';
             case 'scroll_enchant_weapon':
                 if (player.weapon) {
                     // 命中かダメージのどちらかを強化
@@ -457,36 +539,62 @@ export class Item {
             case 'scroll_scare_monster':
                 return 'あなたはマニアックな笑い声をあげた！';
             case 'scroll_aggravate_monster':
+                // monster.c aggravate() (line 738-753)
                 game.monsters.forEach(m => {
-                    // 0x8 = ASLEEP
-                    if (m.hasFlag(8)) {
-                        m.removeFlag(8);
+                    // 起こす
+                    if (m.hasFlag(0x8)) { // ASLEEP
+                        m.removeFlag(0x8);
+                    }
+                    // 擬態解除 (monster.c line 747)
+                    if (m.hasFlag(0x100)) { // IMITATES
+                        m.removeFlag(0x100);
                     }
                 });
+                // 画面更新
+                game.updateDisplay();
                 return '低い唸り声が響き渡った。';
             case 'scroll_magic_mapping':
                 // マップ全開放
-                // level.tiles の状態を変えるのではなく、displayのvisitedフラグがあればいいが、
-                // 現状のdisplay.jsは level.isVisible(x,y) を呼んでいる。
-                // level.js に mapAll() みたいなメソッドが必要か、
-                // または level.visited 配列を全て true にする。
-                // レベルの実装を確認できないので、メッセージのみ。
-                return '頭の中に地図が浮かび上がった（未実装）。';
+                if (game && game.level) {
+                    game.level.revealAll();
+                    game.updateDisplay();
+                    return '頭の中に地図が浮かび上がった！';
+                }
+                return '何も起こらなかった。';
             case 'scroll_hold_monster':
-                // 周囲のモンスターをHOLD状態にする
-                // Monster.flags に HOLDS 的なものがあればセット
-                // 0x1000 = FREEZES (能力)
-                // 0x2000 = REGEN (能力)
-                // HOLDING状態フラグは定義されていない（モンスター用）
-                // ステータス異常としてのHOLD（金縛り）はモンスターには通常ない（Rogueでは杖のSlowなど）
-                // 巻き物のHold Monsterは、周囲のモンスターを2-3ターン動けなくする。
-                // Monster.heldTurns とかを新設するか、sleepTurnsを使う。
-                game.monsters
-                    .filter(m => Math.abs(m.x - player.x) < 3 && Math.abs(m.y - player.y) < 3)
-                    .forEach(m => {
-                        m.setFlag(0x8); // ASLEEP (HoldもSleep扱い)
-                    });
-                return 'モンスターが動きを止めた。';
+                // use.c hold_monster() (line 637-667)
+                // プレイヤー周囲5x5マス (2マス範囲)
+                {
+                    let mcount = 0;
+                    for (let dy = -2; dy <= 2; dy++) {
+                        for (let dx = -2; dx <= 2; dx++) {
+                            const x = player.x + dx;
+                            const y = player.y + dy;
+
+                            // 範囲外チェック
+                            if (!game.level.isInBounds(x, y)) {
+                                continue;
+                            }
+
+                            // モンスターチェック
+                            const monster = game.monsters.find(m => m.x === x && m.y === y);
+                            if (monster) {
+                                monster.setFlag(0x8); // ASLEEP
+                                monster.removeFlag(0x10); // WAKENS 解除
+                                mcount++;
+                            }
+                        }
+                    }
+
+                    // メッセージをモンスター数に応じて変更
+                    if (mcount === 0) {
+                        return '奇妙な喪失感を感じた。';
+                    } else if (mcount === 1) {
+                        return 'モンスターが凍りついた。';
+                    } else {
+                        return '周囲のモンスターが凍りついた。';
+                    }
+                }
             default:
                 return '何も起こらなかった。';
         }

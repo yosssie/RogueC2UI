@@ -4,6 +4,118 @@
 
 ---
 
+## 2026-01-07
+
+### � モンスター特殊行動の実装
+- **ドラゴンの炎攻撃 (FLAMES) 完全実装** (Original Rogue `monster.c flame_broil` 準拠)
+  - **エフェクト**: ドラゴンからプレイヤーへの直線上に `~` (チルダ) の軌跡を一瞬(0.05秒)表示
+  - **射程**: 7マス以内の直線のみ
+  - **ダメージ**: 4d6 (固定) だが、ACにより軽減される仕様を再現
+  - **軽減ロジック**: `damage = max(1, damage - AC)` (炎はAC値そのものがダメージ減少値になる)
+
+### 📄 ドキュメント整理
+- **実装状況管理の効率化**
+  - `monster_status_check.md` (モンスター), `scroll_status_check.md` (巻物), `wand_status_check.md` (杖), `potion_status_check.md` (薬) を `task_list.md` に全て統合
+  - 重複していたチェックリストを削除して一元管理へ移行
+
+### �🗺️ アイテム効果完全実装
+- **地図作成の巻物 (Magic Mapping) 実装**
+  - `scroll_magic_mapping` の効果を実装
+  - `level.revealAll()` を呼び出してマップ全体を表示
+  - 使用時に `game.updateDisplay()` で即座に反映
+
+- **アイテム感知の薬 (Detect Objects) 実装**
+  - `potion_detect_objects` の効果を実装
+  - `player.status.detectObjects` フラグ追加 (250-550ターン持続)
+  - `Display.renderDungeon()` で未訪問の場所でもアイテムを表示
+  - `Game.updatePlayerStatus()` でターン毎に減少処理
+  - 効果中はマップ全体のアイテムが見える
+
+### 💊 ポーション効果完全実装 (use.c 準拠)
+- **回復薬 (HEALING / EXTRA_HEALING) の複雑なロジック実装**
+  - `potionHeal()` メソッド追加 (use.c line 518-561 移植)
+  - 経験値分回復 + HP割合に応じた回復量計算
+  - 満タン時は最大HP増加 (通常+1, 大回復+2)
+  - 盲目・混乱・幻覚を治癒/軽減
+
+- **ターン数をオリジナルに準拠**
+  - 盲目の薬: 250→500-800ターン
+  - 幻覚の薬: 250→500-800ターン
+  - 加速の薬: 4-10→11-21ターン (奇数)
+  - 浮遊の薬: 15-35→15-30ターン
+
+
+- **副次効果の実装**
+  - 毒の薬: 幻覚も治す
+  - 透明視認の薬: 盲目も治す
+  - 浮遊の薬: 金縛りと罠から解放
+  - 筋力増強の薬: ロジック修正 (str++ → maxStr更新)
+
+### 🎮 ポーション画面・ゲーム効果の完全実装
+- **盲目 (BLINDNESS) の画面効果**
+  - `Display.renderDungeon()` に盲目チェック追加
+  - 盲目時はプレイヤーの隣接1マスのみ表示
+  - デバッグモード時は無効化
+
+- **幻覚 (HALLUCINATION) の画面効果**
+  - モンスターシンボルをランダムな大文字 (A-Z) に変更
+  - アイテムシンボルをランダムなアイテム記号に変更
+  - use.c hallucinate() を完全移植
+
+- **モンスター感知 (DETECT_MONSTER) の画面効果**
+  - `Display.renderDungeon()` に感知チェック追加
+  - 感知中は全モンスターを表示 (視界外でも)
+  - デバッグモードと同様の処理
+
+- **混乱 (CONFUSION) のゲーム効果**
+  - `Game.movePlayer()` に混乱チェック実装済み
+  - 移動方向を8方向からランダム選択
+
+- **加速 (HASTE_SELF) のゲーム効果**
+  - `Game.handlePlayerAction()` で加速フラグをprocessTurnに渡す
+  - `Game.processTurn(skipMonsters)` でモンスター行動をスキップ
+  - 加速中はプレイヤーが2回行動、モンスターが1回行動
+
+- **浮遊 (LEVITATION) のゲーム効果**
+  - `TrapManager.trapPlayer()` に浮遊チェック追加
+  - 浮遊中は全ての罠を無効化
+
+### 📜 巻物効果完全実装 (use.c 準拠)
+- **怪物召喚の巻物 (CREATE_MONSTER) 実装**
+  - `Game.createMonster()` メソッド追加 (monster.c line 580-616 移植)
+  - プレイヤー周囲9マスをランダムに探索
+  - 配置可能な場所にランダムモンスター生成
+  - WANDERS/WAKENS フラグがあれば起こす
+  - 配置できない場合は「遠くで苦悶の叫び声が聞こえた」
+
+- **金縛りの巻物 (HOLD_MONSTER) 改善**
+  - 範囲を3マス→5x5マス (2マス範囲) に変更
+  - WAKENS フラグ解除を追加
+  - メッセージをモンスター数に応じて変更 (0/1/複数)
+
+- **怪物激怒の巻物 (AGGRAVATE_MONSTER) 改善**
+  - IMITATES フラグ解除を追加
+  - 画面更新を追加
+
+### 🐉 モンスター行動の完全実装
+- **速度 (HASTED/SLOWED) の行動回数反映**
+  - `Game.processTurn` のループ処理を刷新
+  - HASTED: 1ターンに2回行動
+  - SLOWED: 2ターンに1回行動 (トグル)
+
+- **状態異常の挙動改善**
+  - **混乱 (CONFUSED)**: 行動時に `randomMove()` を呼び、移動可能なマスへ確実にランダム移動するように改善
+  - **睡眠 (NAPPING)**: `sleepTurns` のカウントダウン処理を実装 (杖の効果が正しく切れるように)
+  - **固定 (STATIONARY)**: 移動処理を行わないように修正 (Venus Flytrap等)
+  - **飛行 (FLIES)**: プレイヤーと離れている場合は2回移動し、接近後のターンは攻撃を行わないロジックを実装 (Griffon, Kestrel等)。オリジナルRogueの `mv_mons` 準拠。
+
+### 🔍 探索機能の実装
+- **基本機能**: 隠し扉、罠の発見（実装済み）
+- **備考**: `s` キーでの探索時、`Level.search` と `TrapManager.search` の両方を行うように `Game.js` を調整。
+  - ※ 誤って変更したキー設定 (`KeyI` for Inventory) を元の `KeyS` に復旧しました。
+
+---
+
 ## 2026-01-06 (続き)
 
 ### 🐛 ゲーム中デバッグモード実装
@@ -108,30 +220,41 @@
 ## 2026-01-05 (続き)
 
 ### 🐛 重大バグ修正
-1. **二重ターン処理バグ（最重要）**
-   - `movePlayer` と `handlePlayerAction` の両方で `processTurn` を呼んでいた
-   - モンスターが2回行動していたため「逃げても攻撃される」問題が発生
-   - `movePlayer` 内の `processTurn` 呼び出しを削除し、`handlePlayerAction` で一元管理
+1.  **二重ターン処理バグ（最重要）**
+    -   `movePlayer` と `handlePlayerAction` の両方で `processTurn` を呼んでいた
+    -   モンスターが2回行動していたため「逃げても攻撃される」問題が発生
+    -   `movePlayer` 内の `processTurn` 呼び出しを削除し、`handlePlayerAction` で一元管理
 
-2. **HPがNaNになるバグ**
-   - `parseDice` が複数回攻撃記号 (`3d3/2d5`) に対応していなかった
-   - スラッシュ以降を無視するように修正
+2.  **HPがNaNになるバグ**
+    -   `parseDice` が複数回攻撃記号 (`3d3/2d5`) に対応していなかった
+    -   スラッシュ以降を無視するように修正
 
-3. **死後攻撃メッセージバグ**
-   - プレイヤー死亡後も `forEach` ループが続き、複数の攻撃メッセージが表示
-   - `for...of` + `break` に変更し、HP≤0で即座にループ終了
+3.  **死後攻撃メッセージバグ**
+    -   プレイヤー死亡後も `forEach` ループが続き、複数の攻撃メッセージが表示
+    -   `for...of` + `break` に変更し、HP≤0で即座にループ終了
 
-4. **モンスター視界バグ**
-   - 部屋内でも隣接モンスターしか表示されない問題
-   - `Display.js` の `isInPlayerSight` を拡張し、同じ部屋内なら全て表示
-   - **プロパティ名の不一致を修正**: `Level.js` と `DebugLevel.js` が `{width, height}` で保存していたが、`Display.js` は `{w, h}` を期待していた
-   - `Game.js` のスポーン処理も同様に修正（モンスター・アイテムが `NaN` 座標に重なっていた）
+4.  **モンスター視界バグ**
+    -   部屋内でも隣接モンスターしか表示されない問題
+    -   `Display.js` の `isInPlayerSight` を拡張し、同じ部屋内なら全て表示
+    -   **プロパティ名の不一致を修正**: `Level.js` と `DebugLevel.js` が `{width, height}` で保存していたが、`Display.js` は `{w, h}` を期待していた
+    -   `Game.js` のスポーン処理も同様に修正（モンスター・アイテムが `NaN` 座標に重なっていた）
 
-5. **モンスター重複バグ**
-   - 徘徊時に他のモンスターとの衝突判定がなかった
-   - `Monster.canMoveTo()` を追加し、他のモンスターがいる位置には移動しないように修正
+5.  **モンスター重複バグ**
+    -   徘徊時に他のモンスターとの衝突判定がなかった
+    -   `Monster.canMoveTo()` を追加し、他のモンスターがいる位置には移動しないように修正
 
 ### 🤖 モンスターAI改善（オリジナルRogue準拠）
+### Ver 0.2.14 (Monster Special Actions & Damage Fix)
+*   **モンスター特殊行動**: Dragonの炎攻撃 (FLAMES) を実装。
+    *   距離7マス以内の直線上にいる場合、50%の確率で炎を吐く。
+*   **ダメージ計算式変更**: Original Rogue (v5.4.4) 準拠に変更。
+    *   物理攻撃: ダメージの (Armor * 3)% を軽減。
+    *   炎攻撃: まず Armor値を減算し、その後 (Armor * 3)% を軽減。
+*   **視界判定**: Original Rogueの `mon_sees` 関数に準拠。
+    *   普通の部屋: 同じ部屋内なら全体が見える
+    *   迷路・通路: 隣接しないと見えない
+
+### Ver 0.2.13 (Monster Special Actions - Medusa)
 - **`mon_sees()` 移植**
   - `monster.c` の `mon_sees()` ロジックを完全移植
   - 同じ部屋内 → 追跡

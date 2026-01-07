@@ -82,6 +82,11 @@ export class TrapManager {
             return;
         }
 
+        // 浮遊中は罠を踏まない (use.c LEVITATION)
+        if (this.game.player.status && this.game.player.status.levitate > 0) {
+            return;
+        }
+
         // 罠を可視化
         const trap = this.traps.find(t => t.row === row && t.col === col);
         if (trap) {
@@ -269,7 +274,6 @@ export class TrapManager {
         const level = this.game.level;
         const ringExp = 0; // TODO: 指輪実装後
 
-        let found = 0;
         let shown = 0;
 
         // 周囲8マスをチェック
@@ -298,14 +302,8 @@ export class TrapManager {
                     // TODO: 隠し扉の探索も追加
                 }
             }
-
-            // 自動探索でない場合、ターンを消費
-            if (!isAuto) {
-                this.game.processTurn();
-            }
         }
-
-
+        return shown;
     }
 
     // 熊の罠の拘束チェック
