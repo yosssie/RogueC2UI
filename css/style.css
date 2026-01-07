@@ -15,7 +15,7 @@
     --border-color: #00aa00;
     --highlight-color: #ffffff;
 
-    --wall-color: #800000;
+    --wall-color: #ff8000;
     /* EGA brown */
     --passage-color: #808080;
     /* gray */
@@ -289,6 +289,8 @@ body {
     list-style: none;
     overflow-y: auto;
     flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 #inventory-list li {
@@ -296,6 +298,16 @@ body {
     border-bottom: 1px solid rgba(0, 170, 0, 0.3);
     color: var(--text-color);
     font-size: 0.9rem;
+}
+
+/* 足元アイテム（下寄せ） */
+#inventory-list li.at-feet-item {
+    margin-top: auto;
+    border-top: 2px dashed var(--border-color);
+    border-bottom: none;
+    padding-top: 0.5rem;
+    background-color: rgba(0, 100, 0, 0.1);
+    margin-bottom: 2px;
 }
 
 /* ===========================
@@ -489,11 +501,13 @@ body {
     color: var(--trap-color);
     font-weight: bold;
 }
+
 /* ===========================
    炎エフェクト (Dragon FLAMES)
    =========================== */
 .flame-effect {
-    color: #ff4500; /* オレンジレッド */
+    color: #ff4500;
+    /* オレンジレッド */
     font-weight: bold;
     text-shadow: 0 0 5px #ff0000;
 }

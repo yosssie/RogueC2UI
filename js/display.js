@@ -214,8 +214,20 @@ Mon:${nearbyMonsters}`;
             inventory.forEach((item, index) => {
                 const li = document.createElement('li');
                 // アイテムID (a-z) を表示
-                const char = String.fromCharCode(97 + index);
+                let char = String.fromCharCode(97 + index);
+                if (item._isAtFeet || item._isStairs) {
+                    char = 'z';
+                }
+
                 let name = item.getDisplayName();
+                if (item._isAtFeet || item._isStairs) {
+                    name += ' (足元)';
+                }
+
+                // クラス追加 (CSSで下寄せにするため)
+                if (item._isAtFeet || item._isStairs) {
+                    li.classList.add('at-feet-item');
+                }
 
                 // 装備マーク (playerが渡された場合)
                 if (player) {

@@ -375,7 +375,7 @@ class Game {
     }
 
     // move.c one_move_rogue
-    movePlayer(dx, dy) {
+    movePlayer(dx, dy, pickup = true) {
         // 睡眠・凍結チェック
         if (this.player.status.sleep > 0) {
             this.display.showMessage('動けない！');
@@ -442,16 +442,18 @@ class Game {
         this.player.y = newY;
 
         // 5. アイテム処理 (pick_up)
-        const item = this.items.find(i => i.x === newX && i.y === newY);
-        if (item) {
-            // 浮遊チェックがあればここでスキップ
-            if (this.player.addItem(item)) {
-                this.items = this.items.filter(i => i !== item);
-                this.display.showMessage(`${item.getDisplayName()}を拾った。`);
-                // Rogue仕様: アイテムを拾ったらダッシュ停止 (STOPPED_ON_SOMETHING)
-                // これはdashPlayerのnextToSomethingで検知される
-            } else {
-                this.display.showMessage('持ちものがいっぱいだ。');
+        if (pickup) {
+            const item = this.items.find(i => i.x === newX && i.y === newY);
+            if (item) {
+                // 浮遊チェックがあればここでスキップ
+                if (this.player.addItem(item)) {
+                    this.items = this.items.filter(i => i !== item);
+                    this.display.showMessage(`${item.getDisplayName()}を拾った。`);
+                    // Rogue仕様: アイテムを拾ったらダッシュ停止 (STOPPED_ON_SOMETHING)
+                    // これはdashPlayerのnextToSomethingで検知される
+                } else {
+                    this.display.showMessage('持ちものがいっぱいだ。');
+                }
             }
         }
 
@@ -459,7 +461,60 @@ class Game {
         // 罠があれば発動。隠し罠なら表示される。
         this.trapManager.trapPlayer(newY, newX);
 
+        // 7. 部屋の更新 (monster.c wake_room)
+        const oldRoom = this.level.getRoomAt(oldX, oldY);
+        const newRoom = this.level.getRoomAt(newX, newY);
+
+        if (newRoom && oldRoom !== newRoom) {
+            // 部屋に入った
+            this.wakeRoom(newRoom, true, newY, newX);
+        } else if (oldRoom && oldRoom !== newRoom) {
+            // 部屋から出た (通路へ)
+            // 最後にいた場所(oldX, oldY)をターゲットとしてセット
+            this.wakeRoom(oldRoom, false, oldY, oldX);
+        }
+
         return true; // ターン消費 (MOVED or STOPPED_ON_SOMETHING)
+    }
+
+    // monster.c wake_room 移植
+    wakeRoom(room, entering, row, col) {
+        if (!room) return;
+
+        this.monsters.forEach(m => {
+            // モンスターがいる部屋を取得
+            const mRoom = this.level.getRoomAt(m.x, m.y);
+
+            // 同じ部屋にいるかチェック
+            if (mRoom && mRoom === room) {
+                if (entering) {
+                    // プレイヤーが入ってきた瞬間はターゲットクリア（まだ気づいていない？）
+                    // オリジナル: monster->trow = NO_ROOM;
+                    m.trow = null;
+                    m.tcol = null;
+                } else {
+                    // 部屋から出る時、最後の位置をターゲット設定（ここまで追ってくる）
+                    // オリジナル: monster->trow = row; monster->tcol = col;
+                    m.trow = row;
+                    m.tcol = col;
+                }
+
+                // 寝ているモンスターを起こす判定 (WAKENS flag)
+                // オリジナル仕様: 部屋に入った時(entering=true) かつ 確率判定
+                // 部屋から出ていく時(entering=false)は起こさない（既に起きているなら追ってくる）
+                if (entering && m.hasFlag(Monster.FLAGS.WAKENS) && m.hasFlag(Monster.FLAGS.ASLEEP)) {
+                    // 確率判定 (オリジナルは wake_percent = 45 等)
+                    if (Math.random() < 0.45) {
+                        m.removeFlag(Monster.FLAGS.ASLEEP);
+                        // 擬態解除 (IMITATES)
+                        if (m.hasFlag(Monster.FLAGS.IMITATES)) {
+                            m.removeFlag(Monster.FLAGS.IMITATES);
+                        }
+                        // メッセージはうるさいので基本出さない
+                    }
+                }
+            }
+        });
     }
 
     // ダッシュ (move.c multiple_move_rogue() 移植)
@@ -468,7 +523,8 @@ class Game {
 
         for (let i = 0; i < maxSteps; i++) {
             // 1. 移動を試みる (one_move_rogue)
-            let moved = this.movePlayer(dx, dy);
+            // ダッシュ時は拾わない (pickup=false)
+            let moved = this.movePlayer(dx, dy, false);
 
             // 2. 移動失敗時: 通路の曲がり角チェック (bent_passage logic)
             // #if !defined( ORIGINAL ) int multiple_move_rogue(...)
@@ -480,7 +536,7 @@ class Game {
                     if (newDir) {
                         dx = newDir.x;
                         dy = newDir.y;
-                        moved = this.movePlayer(dx, dy); // 新しい方向へ移動
+                        moved = this.movePlayer(dx, dy, false); // 新しい方向へ移動(拾わない)
                     }
                 }
             }
@@ -497,6 +553,13 @@ class Game {
 
             // アニメーションウェイト
             await new Promise(r => setTimeout(r, 5));
+
+            // 足元チェック (アイテムに乗ったら停止)
+            if (this.isItemAt(this.player.x, this.player.y)) {
+                const item = this.items.find(i => i.x === this.player.x && i.y === this.player.y);
+                if (item) this.display.showMessage(`${item.getDisplayName()}の上にいる。`);
+                break;
+            }
 
             // 5. 停止条件チェック (next_to_something)
             // 移動後の位置で周囲をチェック
@@ -664,18 +727,23 @@ class Game {
 
         // 睡眠判定 (ASLEEP)
         if (monster.hasFlag(MonsterClass.FLAGS.ASLEEP)) {
-            // 部屋に入ったら起きる / 隣接したら起きる
-            const mRoom = this.level.getRoomAt(monster.x, monster.y);
-            const pRoom = this.level.getRoomAt(this.player.x, this.player.y);
-            const sameRoom = (mRoom && pRoom && mRoom === pRoom);
+            // 隣接判定
             const adjacent = (dx <= 1 && dy <= 1);
 
-            if (sameRoom || adjacent) {
-                // 起きる
-                monster.removeFlag(MonsterClass.FLAGS.ASLEEP);
-                // "Xは目を覚ました" メッセージは省略
-            } else {
-                // 寝ているので行動終了
+            // 隣接時に確率で起きる (WAKENS持ちのみ)
+            // オリジナル (monster.c mv_monster): WAKENSがあり、隣接している場合、確率で起きる
+            if (adjacent && monster.hasFlag(MonsterClass.FLAGS.WAKENS)) {
+                // 確率 (WAKE_PERCENT = 45)
+                if (Math.random() < 0.45) {
+                    monster.removeFlag(MonsterClass.FLAGS.ASLEEP);
+                    if (monster.hasFlag(MonsterClass.FLAGS.IMITATES)) {
+                        monster.removeFlag(MonsterClass.FLAGS.IMITATES);
+                    }
+                }
+            }
+
+            // まだ寝ているなら行動終了
+            if (monster.hasFlag(MonsterClass.FLAGS.ASLEEP)) {
                 return;
             }
         }
@@ -1010,10 +1078,14 @@ class Game {
     pickupItem() {
         const item = this.items.find(i => i.x === this.player.x && i.y === this.player.y);
         if (item) {
-            this.player.addItem(item);
-            this.items = this.items.filter(i => i !== item);
-            this.display.showMessage(`${item.getDisplayName()}を拾った。`);
-            return true;
+            if (this.player.addItem(item)) {
+                this.items = this.items.filter(i => i !== item);
+                this.display.showMessage(`${item.getDisplayName()}を拾った。`);
+                return true;
+            } else {
+                this.display.showMessage('持ちものがいっぱいだ。');
+                return false;
+            }
         } else {
             this.display.showMessage('ここには何もない。');
             return false;
@@ -1033,7 +1105,10 @@ class Game {
 
         this.display.renderDungeon(this.level, this.player, this.monsters, this.items, targetInfo, this.trapManager, this.inGameDebugMode);
         this.display.updateStatus(this.player, this.currentFloor);
-        this.display.updateInventory(this.player.inventory, this.player);
+
+        // インベントリ更新: 常にUI用リスト（足元含む）を表示
+        const uiList = this.getUIInventoryList();
+        this.display.updateInventory(uiList, this.player);
 
         // インベントリ画面ならカーソルを再適用
         if (this.state === 'inventory') {
@@ -1047,8 +1122,34 @@ class Game {
     // メニュー・インベントリ操作
     // ===========================
 
+    // UI表示用のインベントリリストを取得（足元のアイテムを含む）
+    getUIInventoryList() {
+        const list = [...this.player.inventory];
+
+        // 足元のアイテム
+        const itemAtFeet = this.items.find(i => i.x === this.player.x && i.y === this.player.y);
+        if (itemAtFeet) {
+            // UI表示用にプロパティを追加するためのコピー
+            // プロトタイプ継承してメソッドを使えるようにしつつ、独自プロパティを追加
+            const uiItem = Object.assign(Object.create(Object.getPrototypeOf(itemAtFeet)), itemAtFeet);
+            uiItem._isAtFeet = true;
+            list.push(uiItem);
+        }
+
+        // 足元の階段
+        if (this.level.getTile(this.player.x, this.player.y) === '%') {
+            list.push({
+                getDisplayName: () => '階段',
+                _isStairs: true
+            });
+        }
+
+        return list;
+    }
+
     openInventory() {
-        if (this.player.inventory.length === 0) {
+        const list = this.getUIInventoryList();
+        if (list.length === 0) {
             this.display.showMessage('持ち物がない。');
             return;
         }
@@ -1056,23 +1157,31 @@ class Game {
         this.inventoryIndex = 0;
         this.display.updateInventoryCursor(this.inventoryIndex);
         this.display.showMessage('持ち物を選択中... (A:決定, B:戻る)');
+        this.updateDisplay(); // 足元アイテム表示のために更新
     }
 
     closeInventory() {
         this.state = 'playing';
         this.display.updateInventoryCursor(-1); // カーソル消去
         this.display.showMessage('');
+        this.updateDisplay(); // 通常インベントリリストに戻す
     }
 
     moveInventoryCursor(delta) {
-        const len = this.player.inventory.length;
+        const list = this.getUIInventoryList();
+        const len = list.length;
         if (len === 0) return;
         this.inventoryIndex = (this.inventoryIndex + delta + len) % len;
         this.display.updateInventoryCursor(this.inventoryIndex);
     }
 
     selectInventoryItem() {
-        if (this.player.inventory.length === 0) return;
+        const list = this.getUIInventoryList();
+        if (list.length === 0) return;
+
+        const item = list[this.inventoryIndex];
+
+        // 足元のアイテムや階段でもサブメニューを開く（selectInventoryItemでは分岐しない）
         this.openSubMenu();
     }
 
@@ -1098,11 +1207,31 @@ class Game {
     openSubMenu() {
         this.state = 'submenu';
         this.subMenuIndex = 0;
-        const item = this.player.inventory[this.inventoryIndex];
+
+        // UIリストを使用（足元アイテム対応）
+        const list = this.getUIInventoryList();
+        const item = list[this.inventoryIndex];
 
         // アイテム種別に応じたアクション定義
         this.subMenuOptions = [];
 
+        // 足元アイテム・階段の場合の特別処理
+        if (item._isAtFeet || item._isStairs) {
+            if (item._isAtFeet) {
+                this.subMenuOptions.push({ label: '拾う', action: 'pickup' });
+            } else {
+                this.subMenuOptions.push({ label: '降りる', action: 'descend' });
+            }
+            this.subMenuOptions.push({ label: 'やめる', action: 'cancel' });
+
+            // 即座にメニュー表示してリターン（既存ロジックをスキップ）
+            const x = 800;
+            const y = 100 + (this.inventoryIndex * 24);
+            this.display.showSubMenu(x, y, this.subMenuOptions, this.subMenuIndex);
+            return;
+        }
+
+        // 以下、通常アイテムの処理
         // 装備品 (武器・防具)
         if (item.type === 'weapon' || item.type === 'armor') {
             const isEquipped = (this.player.weapon === item || this.player.equippedArmor === item);
@@ -1187,9 +1316,21 @@ class Game {
 
     selectSubMenuOption() {
         const option = this.subMenuOptions[this.subMenuIndex];
-        const item = this.player.inventory[this.inventoryIndex];
+        // const item = this.player.inventory[this.inventoryIndex]; // 不要（アクション内で使うなら取得）
 
         switch (option.action) {
+            case 'pickup':
+                this.closeSubMenu();
+                this.closeInventory();
+                if (this.pickupItem()) {
+                    this.processTurn();
+                }
+                break;
+            case 'descend':
+                this.closeSubMenu();
+                this.closeInventory();
+                this.nextLevel();
+                break;
             case 'use':
                 this.closeSubMenu(); // サブメニュー閉じる
                 // アイテム使用処理

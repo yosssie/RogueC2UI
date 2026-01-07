@@ -122,6 +122,8 @@ export class Monster {
         this.sleepTurns = 0;
         this.heldTurns = 0; // 金縛り用
         this.slowedToggle = false; // SLOWED時の行動スキップ用
+        this.trow = null; // ターゲットY座標
+        this.tcol = null; // ターゲットX座標
     }
 
     hasFlag(flagVal) {
@@ -170,25 +172,41 @@ export class Monster {
         }
 
         // ふらふら移動 (FLITS) Check
-        // Rogue仕様: 47%の確率でランダム移動してしまう
         if (this.hasFlag(Monster.FLAGS.FLITS) && Math.random() < 0.47) {
             this.randomMove(level, monsters);
             return;
         }
 
-        // mon_sees でプレイヤーが見えるかチェック
+        // 1. まずプレイヤーが見えるかチェック
         if (this.canSeePlayer(player, level)) {
-            this.chasePlayer(player, level, monsters);
+            // 見えたらターゲットをプレイヤー位置に更新
+            this.tcol = player.x;
+            this.trow = player.y;
+        }
+
+        // 2. ターゲット地点到達チェック
+        if (this.tcol === this.x && this.trow === this.y) {
+            // 到達したらターゲットクリア
+            this.tcol = null;
+            this.trow = null;
+        }
+
+        // 3. 移動決定
+        if (this.tcol !== null && this.trow !== null) {
+            // ターゲットがあるならそこに向かう
+            this.moveToTarget(this.tcol, this.trow, level, monsters, player);
         } else {
-            // 見えない場合は徘徊 (WANDERS フラグ持ちのみ動くが、簡易実装で全部動く)
-            this.randomMove(level, monsters);
+            // ターゲットがないならランダム徘徊 (WANDERS フラグ持ちのみ)
+            if (this.hasFlag(Monster.FLAGS.WANDERS)) {
+                this.randomMove(level, monsters);
+            }
         }
     }
 
-    chasePlayer(player, level, monsters = []) {
-        // プレイヤーに向かって移動
-        const dx = Math.sign(player.x - this.x);
-        const dy = Math.sign(player.y - this.y);
+    // ターゲットに向かって移動 (旧 chasePlayer)
+    moveToTarget(targetX, targetY, level, monsters = [], player = null) {
+        const dx = Math.sign(targetX - this.x);
+        const dy = Math.sign(targetY - this.y);
 
         // まず斜め移動を試みる
         if (dx !== 0 && dy !== 0) {
@@ -215,7 +233,8 @@ export class Monster {
             }
         }
 
-        // どちらも無理ならランダム移動
+        // どちらも無理なら...
+        // オリジナルではここでもう少し賢い回避(mtry)をするが、とりあえずランダム
         this.randomMove(level, monsters);
     }
 
@@ -309,6 +328,15 @@ export class Monster {
 
     takeDamage(damage) {
         this.hp -= damage;
+        // 攻撃を受けたら目を覚ます
+        if (this.hasFlag(Monster.FLAGS.ASLEEP)) {
+            this.removeFlag(Monster.FLAGS.ASLEEP);
+        }
+        // 擬態解除
+        if (this.hasFlag(Monster.FLAGS.IMITATES)) {
+            this.removeFlag(Monster.FLAGS.IMITATES);
+            this.symbol = this.type;
+        }
     }
 
     isDead() {
