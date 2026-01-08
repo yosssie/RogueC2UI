@@ -98,8 +98,11 @@ export class Item {
                 { id: 'scroll_aggravate_monster', name: '怪物を怒らせる巻き物', prob: 5, type: 'scroll' },
                 { id: 'scroll_magic_mapping', name: '魔法の地図の巻き物', prob: 10, type: 'scroll' }
             ],
-            // その他（固定）
-            ':': [{ id: 'food', name: '食料', prob: 100, value: 500, type: 'food' }],
+            // 食料 (2種類: RATION=食糧, FRUIT=こけもも)
+            ':': [
+                { id: 'ration', name: '食糧', prob: 70, value: 500, type: 'food', foodKind: 'ration' },
+                { id: 'fruit', name: 'こけもも', prob: 30, value: 500, type: 'food', foodKind: 'fruit' }
+            ],
             '*': [{ id: 'gold', name: '金貨', prob: 100, type: 'gold' }],
 
             // 杖 (zap.c)
@@ -216,13 +219,23 @@ export class Item {
         this.type = data.type; // category
         this.value = data.value || 0;
 
+        // 食料の種類を保存
+        if (this.type === 'food') {
+            this.foodKind = data.foodKind || 'ration';
+        }
+
         this.value = data.value || 0;
         // スタック可能か判定
         if (data.stack !== undefined) {
             this.stackable = data.stack;
         } else {
-            // 定義がない場合のデフォルト: 薬、巻物、食料はスタック可能
-            this.stackable = ['potion', 'scroll', 'food'].includes(this.type);
+            // 定義がない場合のデフォルト: 薬、巻物、食糧(RATION)はスタック可能
+            // こけもも(FRUIT)はスタック不可
+            if (this.type === 'food' && data.foodKind === 'fruit') {
+                this.stackable = false;
+            } else {
+                this.stackable = ['potion', 'scroll', 'food'].includes(this.type);
+            }
         }
         this.quantity = 1; // 個数
 
@@ -266,7 +279,10 @@ export class Item {
     }
 
     getUnit() {
-        if (this.type === 'food') return '袋の';
+        if (this.type === 'food') {
+            // 食糧(RATION)は「袋の」、こけもも(FRUIT)は「個の」
+            return this.foodKind === 'fruit' ? Mesg[31] : Mesg[30];
+        }
         if (this.type === 'weapon' && (this.id === 'arrow' || this.id === 'dart' || this.id === 'shuriken')) return '本の';
         return '個の';
     }

@@ -286,6 +286,20 @@ class Game {
                             item.identified = true;
                             this.items.push(item);
 
+                            // こけももは3個配置
+                            if (def.id === 'fruit') {
+                                for (let i = 0; i < 2; i++) {
+                                    px++;
+                                    if (px >= storage.x + storage.w - 1) {
+                                        px = storage.x + 1;
+                                        py++;
+                                    }
+                                    const extraFruit = new Item(symbol, px, py, def.id);
+                                    extraFruit.identified = true;
+                                    this.items.push(extraFruit);
+                                }
+                            }
+
                             px++;
                             // 折り返し (部屋の右端まで行ったら次の行へ)
                             if (px >= storage.x + storage.w - 1) {
