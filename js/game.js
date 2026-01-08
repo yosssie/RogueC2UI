@@ -148,6 +148,10 @@ class Game {
         this.player.status.bearTrap = 0;
 
         this.generateFloor();
+        // 階層移動した後、デバッグモードならマップを全開にする
+        if (this.inGameDebugMode) {
+            this.level.revealAll();
+        }
         // 画面更新は generateFloor 内では行われない（loop内でupdateDisplayされる）
         // だがアクションの一部として呼ばれるので手動更新が必要な場合がある
         this.updateDisplay();
@@ -751,7 +755,7 @@ class Game {
                 const isDoor = (tile === '+');
                 const isTrap = false; // TODO
 
-                // 進行方向の逆（来た道）にある「通路」は無視するが、アイテムやモンスターは無視しない
+                // 進行方向の逆（来た道）は無視するが、アイテムやモンスターは無視しない
                 const isReverse = (x === -dx && y === -dy);
 
                 // モンスター・アイテム・階段・罠
@@ -2265,6 +2269,16 @@ class Game {
 
     gameOver(monster = null, cause = null) {
         this.state = 'gameover';
+
+        // ゲームオーバー時はデバッグモードを強制オフ
+        if (this.inGameDebugMode) {
+            this.inGameDebugMode = false;
+            // display側の表示も消すには toggleDebugMode だが、状態整合性のため直接操作かメソッド呼び出しが必要
+            // display.toggleDebugMode はトグルなので、現在の状態を見てオフにする
+            if (this.display.debugMode) {
+                this.display.toggleDebugMode();
+            }
+        }
 
         // スコアマネージャーで死亡処理
         // causeがnullの場合はモンスターに殺された扱い
