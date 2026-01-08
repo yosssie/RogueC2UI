@@ -49,6 +49,9 @@ export class WandManager {
             this.zapMonster(target, wand.wandType);
         }
 
+        // 拡張版: 使ったら必ず識別される
+        wand.identified = true;
+
         return true;
     }
 

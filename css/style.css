@@ -310,6 +310,16 @@ body {
     margin-bottom: 2px;
 }
 
+/* 呪われたアイテム（赤色） */
+#inventory-list li.cursed-item {
+    color: #ff4444;
+}
+
+/* プラスのエンチャント値を持つアイテム（黄色） */
+#inventory-list li.enchanted-item {
+    color: #ffdd44;
+}
+
 /* ===========================
    メニュー画面
    =========================== */

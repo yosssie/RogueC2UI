@@ -1258,20 +1258,12 @@ class Game {
         else if (item.type === 'ring') {
             const isEquipped = (this.player.leftRing === item || this.player.rightRing === item);
             if (isEquipped) {
+                // 装備中の指輪は「外す」のみ
                 this.subMenuOptions.push({ label: '外す', action: 'unequip_ring' });
             } else {
-                // 両手空いている場合は選択
-                if (!this.player.leftRing && !this.player.rightRing) {
-                    this.subMenuOptions.push({ label: '装備（左手）', action: 'equip_ring_left' });
-                    this.subMenuOptions.push({ label: '装備（右手）', action: 'equip_ring_right' });
-                } else if (!this.player.leftRing) {
-                    this.subMenuOptions.push({ label: '装備（左手）', action: 'equip_ring_left' });
-                } else if (!this.player.rightRing) {
-                    this.subMenuOptions.push({ label: '装備（右手）', action: 'equip_ring_right' });
-                } else {
-                    // 両手埋まっている
-                    this.subMenuOptions.push({ label: '装備（両手埋まっている）', action: 'none' });
-                }
+                // 未装備の指輪は常に左右両方の選択肢を表示
+                this.subMenuOptions.push({ label: '左手に装備', action: 'equip_ring_left' });
+                this.subMenuOptions.push({ label: '右手に装備', action: 'equip_ring_right' });
             }
         }
         // 薬
@@ -1329,7 +1321,9 @@ class Game {
 
     selectSubMenuOption() {
         const option = this.subMenuOptions[this.subMenuIndex];
-        // const item = this.player.inventory[this.inventoryIndex]; // 不要（アクション内で使うなら取得）
+
+        // 通常のインベントリアイテムを取得（足元アイテムではない）
+        const item = this.player.inventory[this.inventoryIndex];
 
         switch (option.action) {
             case 'pickup':
@@ -1724,14 +1718,88 @@ class Game {
         if (Math.random() * 100 < hitChance) {
             // 命中
             this.display.showMessage(`${monster.name}に当たった！`);
-            monster.takeDamage(damage);
-            if (monster.isDead()) {
-                this.display.showMessage(`${monster.name}を倒した!`);
-                this.monsters = this.monsters.filter(m => m !== monster);
-                this.player.gainExp(monster.exp);
+
+            // 拡張版: 杖の投擲効果（75%で発動）
+            if (item.type === 'wand' && Math.random() < 0.75) {
+                this.wandManager.zapMonster(monster, item.wandType);
+                return true;
+            }
+            // 拡張版: ポーションの投擲効果
+            else if (item.type === 'potion') {
+                this.potionMonster(monster, item.potionType);
+                return true;
+            }
+            // 通常のダメージ
+            else {
+                monster.takeDamage(damage);
+                if (monster.isDead()) {
+                    this.display.showMessage(`${monster.name}を倒した!`);
+                    this.monsters = this.monsters.filter(m => m !== monster);
+                    this.player.gainExp(monster.exp);
+                }
             }
             return true;
-            return false;
+        }
+        return false;
+    }
+
+    // 拡張版: ポーション投擲効果 (throw.c potion_monster)
+    potionMonster(monster, potionType) {
+        const maxHp = monster.maxHp;
+
+        switch (potionType) {
+            case 'RESTORE_STRENGTH':
+            case 'LEVITATION':
+            case 'HALLUCINATION':
+            case 'DETECT_MONSTER':
+            case 'DETECT_OBJECTS':
+            case 'SEE_INVISIBLE':
+                // 効果なし
+                break;
+            case 'EXTRA_HEALING':
+                // 敵のHPを回復（2/3）
+                monster.hp += Math.floor((maxHp - monster.hp) * 2 / 3);
+                this.display.showMessage(`${monster.name}は回復した！`);
+                break;
+            case 'INCREASE_STRENGTH':
+            case 'HEALING':
+            case 'RAISE_LEVEL':
+                // 敵のHPを回復（1/5）
+                monster.hp += Math.floor((maxHp - monster.hp) / 5);
+                this.display.showMessage(`${monster.name}は少し回復した。`);
+                break;
+            case 'POISON':
+                // ダメージ（HP/4+1）
+                const poisonDamage = Math.floor(monster.hp / 4) + 1;
+                monster.takeDamage(poisonDamage);
+                this.display.showMessage(`${monster.name}は毒に侵された！`);
+                if (monster.isDead()) {
+                    this.display.showMessage(`${monster.name}を倒した!`);
+                    this.monsters = this.monsters.filter(m => m !== monster);
+                    this.player.gainExp(monster.exp);
+                }
+                break;
+            case 'BLINDNESS':
+                // 睡眠
+                monster.flags |= Monster.FLAGS.ASLEEP;
+                this.display.showMessage(`${monster.name}は眠ってしまった。`);
+                break;
+            case 'CONFUSION':
+                // 混乱
+                monster.flags |= Monster.FLAGS.CONFUSED;
+                monster.confusedTurns = 12 + Math.floor(Math.random() * 11); // 12-22ターン
+                this.display.showMessage(`${monster.name}は混乱した！`);
+                break;
+            case 'HASTE_SELF':
+                // 加速（または鈍化解除）
+                if (monster.flags & Monster.FLAGS.SLOWED) {
+                    monster.flags &= ~Monster.FLAGS.SLOWED;
+                    this.display.showMessage(`${monster.name}の動きが元に戻った。`);
+                } else {
+                    monster.flags |= Monster.FLAGS.HASTED;
+                    this.display.showMessage(`${monster.name}は素早くなった！`);
+                }
+                break;
         }
     }
 

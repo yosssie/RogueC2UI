@@ -56,16 +56,23 @@ export class RingManager {
     putOnRing(ring, hand) {
         const player = this.game.player;
 
-        // 両手に指輪がある場合
-        if (this.rRings >= 2) {
-            this.game.display.showMessage('両手に指輪をしている。');
-            return false;
-        }
-
         // 既に装備している場合
         if (ring.equipped) {
             this.game.display.showMessage('既に装備している。');
             return false;
+        }
+
+        // 指定された手に既に指輪がある場合は入れ替え
+        const currentRing = (hand === 'left') ? player.leftRing : player.rightRing;
+        if (currentRing) {
+            // 呪われた指輪は外せない
+            if (currentRing.cursed) {
+                this.game.display.showMessage('呪われた指輪が外れない！');
+                return false;
+            }
+            // 古い指輪を外す
+            this.removeRing(hand);
+            this.game.display.showMessage(`${currentRing.name}を外した。`);
         }
 
         // 呪われた指輪は外せない警告

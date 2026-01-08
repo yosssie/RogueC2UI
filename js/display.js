@@ -177,8 +177,21 @@ Mon:${nearbyMonsters}`;
     }
 
     showMessage(message) {
+        // 空のメッセージは無視
+        if (!message || message.trim() === '') {
+            return;
+        }
+
         // 既存のメッセージアイテムを取得
         const items = Array.from(this.messageLog.children);
+
+        // 直前のメッセージと同じ場合はスキップ（連続重複防止）
+        if (items.length > 0) {
+            const lastMessage = items[items.length - 1].textContent;
+            if (lastMessage === message) {
+                return;
+            }
+        }
 
         // クラスをシフト (current -> old)
         items.forEach(item => {
@@ -237,6 +250,26 @@ Mon:${nearbyMonsters}`;
                         name += ' (EL)';
                     } else if (player.rightRing === item) {
                         name += ' (ER)';
+                    }
+                }
+
+                // 呪われたアイテムは赤色で表示
+                if (item.cursed && item.identified) {
+                    li.classList.add('cursed-item');
+                }
+
+                // プラスのエンチャント値を持つアイテムは黄色で表示
+                if (item.identified) {
+                    let hasPositiveEnchant = false;
+                    if (item.type === 'weapon' && (item.hitBonus > 0 || item.damageBonus > 0)) {
+                        hasPositiveEnchant = true;
+                    } else if (item.type === 'armor' && item.damageBonus > 0) {
+                        hasPositiveEnchant = true;
+                    } else if (item.type === 'ring' && item.enchantment > 0) {
+                        hasPositiveEnchant = true;
+                    }
+                    if (hasPositiveEnchant) {
+                        li.classList.add('enchanted-item');
                     }
                 }
 
