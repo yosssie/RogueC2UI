@@ -139,6 +139,14 @@ class Game {
 
     nextLevel() {
         this.currentFloor++;
+
+        // 階層移動時のステータスリセット (level.c clear_level)
+        this.player.status.detectMonster = 0;
+        this.player.status.detectObjects = 0;
+        this.player.status.seeInvisible = false;
+        this.player.status.held = false;
+        this.player.status.bearTrap = 0;
+
         this.generateFloor();
         // 画面更新は generateFloor 内では行われない（loop内でupdateDisplayされる）
         // だがアクションの一部として呼ばれるので手動更新が必要な場合がある
@@ -1163,8 +1171,8 @@ class Game {
         // 罠探索
         this.trapManager.search(1, false);
 
-        // ターン経過
-        this.processTurn();
+        // ターン経過は呼び出し元(handlePlayerAction)で行うため削除
+        // this.processTurn();
     }
 
     pickupItem() {
