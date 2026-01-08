@@ -70,19 +70,9 @@
 *   **こけももの名前設定**: 現在は固定名「こけもも」。オリジナル準拠で「好きな果物」を設定できる機能を追加するか検討中
 
 ### 🔴 未実装
-*   **杖の追加効果**: 照明 (Light), 生命力吸収 (Drain Life), 属性攻撃 (Cold/Fire/Lightning/Striking)
 *   **モンスター速度の行動回数反映**: Hasted/Slowedモンスターの行動回数調整
 *   **セーブ/ロード**: `save.c`
 *   **スコア**: `score.c`
-
----
-
-## 次の優先タスク
-
-1. **拡張機能の実装** - ポーション投擲、識別改善、バランス調整
-2. **杖の追加効果** - Light, Drain Life, Cold, Fire, Lightning, Striking
-3. **モンスター速度の行動回数反映** - Hasted/Slowedモンスターの処理
-4. **探索と隠し要素** - 隠し扉/隠し通路の生成と探索コマンド
 
 ---
 
@@ -121,52 +111,19 @@
 9.  **無効化の杖 (CANCELLATION)**: 特殊能力解除
 10. **何もしない杖 (DO_NOTHING)**: その名の通り
 
-### 📝 重要な仕様確認
-**以下の杖はオリジナルRogueには存在しません:**
-*   Light
-*   Drain Life
-*   Cold
-*   Fire
-*   Lightning
-*   Striking
-これらはNetHackや他のバリアント由来のものです。
-
 ### 改善が必要な点
 - [ ] **MAGIC_MISSILE の軌道表示**: アニメーション
-- [ ] **CANCELLATION の完全実装**: 全特殊能力フラグの解除
 
-## モンスターAIと特殊能力
-### 実装状況詳細 (monster_status_check.md より統合)
+---
 
-#### ✅ 実装済み
-1. **基本AI**:
-    - [x] プレイヤー追跡 (視界外追跡 trow/tcol 実装済み)
-    - [x] 起床判定 (wake_room 準拠: 入室時・隣接時・被ダメ時のみ)
-    - [x] 斜め移動・ターゲット更新
-2. **特殊攻撃 (spechit.c)**:
-    - [x] 錆び攻撃 (Rust Armor - Aquator)
-    - [x] 毒攻撃 (Sting - Rattlesnake)
-    - [x] 生命力吸収 (Drain Life MaxHP - Vampire)
-    - [x] 吸精 (Drop Level - Wraith)
-    - [x] 盗み (Steal Gold/Item - Leprechaun, Nymph)
-    - [x] 凍結 (Freeze - Ice Monster)
-    - [x] 締め付け (Hold - Venus Flytrap)
-3. **行動パターン**:
-    - [x] **HASTED/SLOWED**: 行動回数反映 (2回行動/スキップ)
-    - [x] **CONFUSED**: ランダム移動
-    - [x] **NAPPING**: 睡眠カウントダウンと起床
-    - [x] **FLIES**: 距離がある場合は2倍移動、罠回避
-    - [x] **FLITS**: 47%でランダム移動 (Bat等)
-    - [x] **STATIONARY**: 移動しない (Flytrap/Fungi)
-    - [x] **AGGRAVATE**: 全モンスター起床、擬態解除
-4. **特殊行動**:
-    - [x] **CONFUSES (Medusa)**: 攻撃ヒット時に確率で混乱
-    - [x] **FLAMES (Dragon)**: 射程7マスの炎攻撃 (AC軽減無視、必中ではない)
-    - [x] **SEEKS_GOLD (Leprechaun)**: 金貨への移動優先 (未実装: 盗んで消える処理) 
+## 完了済みタスク (Recent)
 
-### 未実装・調整中
-- [ ] **SEEKS_GOLD**: 金貨を盗んだ後の逃走ロジック
-- [ ] **迷路 (Maze)**: オリジナルRogue準拠の迷路生成
+### 2026-01-08
+- [x] **モンスターAI改善**: 通路での追跡、行き止まりでの引き返し、視界判定の強化
+- [x] **バグ修正**: 休息/探索時の2重ターン消費、階層移動時の感知ステータスリセット
+- [x] **ポーション完全実装**: オリジナル準拠の効果時間、毒メッセージ、透明視の永続化など
+- [x] **杖修正**: 無効化の杖(CANCELLATION)の挙動をオリジナルに合わせる(特殊能力解除)
+- [x] **こけもも実装**: 食料アイテムの分割
 
 ---
 
@@ -225,6 +182,42 @@
 *   [ ] キーボード操作の完全化（viキーバインドなどの調整）
 
 ---
+
+## モンスターAIと特殊能力
+### 実装状況詳細 (monster_status_check.md より統合)
+
+#### ✅ 実装済み
+1. **基本AI**:
+    - [x] プレイヤー追跡 (視界外追跡 trow/tcol 実装済み)
+    - [x] 起床判定 (wake_room 準拠: 入室時・隣接時・被ダメ時のみ)
+    - [x] 斜め移動・ターゲット更新
+2. **特殊攻撃 (spechit.c)**:
+    - [x] 錆び攻撃 (Rust Armor - Aquator)
+    - [x] 毒攻撃 (Sting - Rattlesnake)
+    - [x] 生命力吸収 (Drain Life MaxHP - Vampire)
+    - [x] 吸精 (Drop Level - Wraith)
+    - [x] 盗み (Steal Gold/Item - Leprechaun, Nymph)
+    - [x] 凍結 (Freeze - Ice Monster)
+    - [x] 締め付け (Hold - Venus Flytrap)
+3. **行動パターン**:
+    - [x] **HASTED/SLOWED**: 行動回数反映 (2回行動/スキップ)
+    - [x] **CONFUSED**: ランダム移動
+    - [x] **NAPPING**: 睡眠カウントダウンと起床
+    - [x] **FLIES**: 距離がある場合は2倍移動、罠回避
+    - [x] **FLITS**: 47%でランダム移動 (Bat等)
+    - [x] **STATIONARY**: 移動しない (Flytrap/Fungi)
+    - [x] **AGGRAVATE**: 全モンスター起床、擬態解除
+4. **特殊行動**:
+    - [x] **CONFUSES (Medusa)**: 攻撃ヒット時に確率で混乱
+    - [x] **FLAMES (Dragon)**: 射程7マスの炎攻撃 (AC軽減無視、必中ではない)
+    - [x] **SEEKS_GOLD (Leprechaun)**: 金貨への移動優先 (未実装: 盗んで消える処理) 
+
+### 未実装・調整中
+- [ ] **SEEKS_GOLD**: 金貨を盗んだ後の逃走ロジック
+- [ ] **迷路 (Maze)**: オリジナルRogue準拠の迷路生成
+
+---
+
 
 ## オリジナルソースコード移植状況 (rogue-reference/src)
 
