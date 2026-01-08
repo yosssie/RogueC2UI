@@ -113,31 +113,35 @@ export class Level {
         // 接続処理 (mix_random_rooms省略、単純なランダム順で)
         const random_rooms = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
 
+
         for (let j = 0; j < MAXROOMS; j++) {
             const i = random_rooms[j];
 
-            // 基本接続: 横(i+1)と縦(i+3)
-            if (i < (MAXROOMS - 1)) {
+            // 基本接続: 右隣(i+1)
+            // 0,1, 3,4, 6,7 のみ右と接続可能 (列の最後 2,5,8 は右がない)
+            if ((i % 3) !== 2) {
                 this.connect_rooms(i, i + 1);
             }
-            if (i < (MAXROOMS - 3)) {
+
+            // 基本接続: 下(i+3)
+            // 0,1,2, 3,4,5 のみ下と接続可能 (行の最後 6,7,8 は下がない)
+            if (i < 6) {
                 this.connect_rooms(i, i + 3);
             }
 
-            // 交差接続: i+2 (横2つ飛ばし)
-            if (i < (MAXROOMS - 2)) {
-                if ((this.rooms[i + 1].is_room & R_NOTHING) &&
-                    (i + 1 !== 4 || vertical)) {
+            // 交差接続: i+2 (横2つ飛ばし) => 0-2, 3-5, 6-8
+            // オリジナル通り: 間の部屋(i+1)が無い場合に接続
+            if ((i % 3) === 0) {
+                if (this.rooms[i + 1].is_room & R_NOTHING) {
                     if (this.connect_rooms(i, i + 2)) {
                         this.rooms[i + 1].is_room = R_CROSS;
                     }
                 }
             }
 
-            // 交差接続: i+6 (縦2つ飛ばし)
-            if (i < (MAXROOMS - 6)) {
-                if ((this.rooms[i + 3].is_room & R_NOTHING) &&
-                    (i + 3 !== 4 || !vertical)) {
+            // 交差接続: i+6 (縦2つ飛ばし) => 0-6, 1-7, 2-8
+            if (i < 3) {
+                if (this.rooms[i + 3].is_room & R_NOTHING) {
                     if (this.connect_rooms(i, i + 6)) {
                         this.rooms[i + 3].is_room = R_CROSS;
                     }
@@ -223,8 +227,17 @@ export class Level {
 
     connect_rooms(room1, room2) {
         // level.c connect_rooms
-        if (!(this.rooms[room1].is_room & (R_ROOM | R_MAZE)) ||
-            !(this.rooms[room2].is_room & (R_ROOM | R_MAZE))) {
+        // 部屋がない場合は通路(R_CROSS)にする (init.c connect)
+        if (!(this.rooms[room1].is_room & (R_ROOM | R_MAZE))) {
+            this.rooms[room1].is_room = R_CROSS;
+        }
+        if (!(this.rooms[room2].is_room & (R_ROOM | R_MAZE))) {
+            this.rooms[room2].is_room = R_CROSS;
+        }
+
+        // R_NOTHING チェック削除（上でR_CROSSにするので不要）
+        if (!(this.rooms[room1].is_room & (R_ROOM | R_MAZE | R_CROSS)) ||
+            !(this.rooms[room2].is_room & (R_ROOM | R_MAZE | R_CROSS))) {
             return false;
         }
 
