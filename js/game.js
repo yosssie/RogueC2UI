@@ -821,10 +821,8 @@ class Game {
                 }
             }
 
-            // まだ寝ているなら行動終了
-            if (monster.hasFlag(MonsterClass.FLAGS.ASLEEP)) {
-                return;
-            }
+            // 寝ていた場合、起きたとしてもこのターンは行動しない (オリジナル仕様: monster.c mv_monster line 244 return)
+            return;
         }
 
         // 攻撃判定
@@ -995,7 +993,7 @@ class Game {
             x = room.x + Math.floor(Math.random() * room.w);
             y = room.y + Math.floor(Math.random() * room.h);
 
-            if (this.level.isWalkable(x, y) && !this.isPositionOccupied(x, y)) {
+            if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                 // 生成成功
                 const monster = new MonsterClass(type, x, y);
                 // WANDERERフラグなどがあればここで設定するが、デフォルトでOK

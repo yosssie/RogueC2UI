@@ -85,7 +85,15 @@ export class Display {
                 if (m.hasFlag && m.hasFlag(0x4)) flags += 'INV '; // INVISIBLE
                 if (m.hasFlag && m.hasFlag(0x2)) flags += 'SLW '; // SLOWED
                 if (m.hasFlag && m.hasFlag(0x1)) flags += 'HST '; // HASTED
-                return `${m.symbol}: HP${m.hp}/${m.maxHp} ${flags}`;
+
+                // 行動モード (Chase, Seek, Wander)
+                let mode = 'W';
+                if (m.canSeePlayer(player, game.level)) {
+                    mode = 'C';
+                } else if (m.tcol !== null && m.trow !== null) {
+                    mode = 'S';
+                }
+                return `${m.symbol}: HP${m.hp}/${m.maxHp} [${mode}] ${flags}`;
             })
             .join(' | ');
 

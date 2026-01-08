@@ -124,6 +124,8 @@ export class Monster {
         this.slowedToggle = false; // SLOWED時の行動スキップ用
         this.trow = null; // ターゲットY座標
         this.tcol = null; // ターゲットX座標
+        this.lastX = null; // 直前の位置（通路追跡用）
+        this.lastY = null;
     }
 
     hasFlag(flagVal) {
@@ -179,16 +181,23 @@ export class Monster {
 
         // 1. まずプレイヤーが見えるかチェック
         if (this.canSeePlayer(player, level)) {
-            // 見えたらターゲットをプレイヤー位置に更新
             this.tcol = player.x;
             this.trow = player.y;
         }
 
         // 2. ターゲット地点到達チェック
         if (this.tcol === this.x && this.trow === this.y) {
-            // 到達したらターゲットクリア
-            this.tcol = null;
-            this.trow = null;
+            // 到達したがプレイヤーが見えていない場合、追跡継続を試みる
+            // (部屋から通路に出た時や、通路を移動中)
+            if (!this.canSeePlayer(player, level)) {
+                this.continueChasing(level);
+            }
+
+            // それでもターゲットが変わらなければクリア（目的地到着）
+            if (this.tcol === this.x && this.trow === this.y) {
+                this.tcol = null;
+                this.trow = null;
+            }
         }
 
         // 3. 移動決定
@@ -203,38 +212,162 @@ export class Monster {
         }
     }
 
-    // ターゲットに向かって移動 (旧 chasePlayer)
+    // 視界外での追跡継続（通路を辿る、部屋を横断する）
+    continueChasing(level) {
+        const tile = level.getTile(this.x, this.y);
+
+        // 部屋(.)にいる場合、他の出口を探す
+        if (tile === '.') {
+            this.findExitInRoom(level);
+            return;
+        }
+
+        // ドア(+) または 通路(#) にいる場合のみ
+        if (tile !== '+' && tile !== '#') return;
+
+        const dirs = [
+            { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }
+        ];
+
+        // ランダムにシャッフル
+        for (let i = dirs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+        }
+
+        for (let d of dirs) {
+            const nx = this.x + d.x;
+            const ny = this.y + d.y;
+
+            // 直前の位置には戻らない
+            if (this.lastX !== null && nx === this.lastX && ny === this.lastY) {
+                continue;
+            }
+
+            const nextTile = level.getTile(nx, ny);
+            // 壁('-', '|') や 空白(' ') 以外なら進める（通路、ドア、床、階段、罠など）
+            if (nextTile !== ' ' && nextTile !== '-' && nextTile !== '|') {
+                this.tcol = nx;
+                this.trow = ny;
+                return;
+            }
+        }
+    }
+
+    // 部屋内の別の出口を探す
+    findExitInRoom(level) {
+        const room = level.getRoomAt(this.x, this.y);
+        if (!room) return;
+
+        const exits = [];
+        // 部屋の境界（壁の位置）をスキャンしてドアを探す
+        // room.x, room.y は床の開始位置。壁はその外側 (-1)
+
+        // 上下辺
+        for (let x = room.x; x < room.x + room.w; x++) {
+            // 上壁: room.y, 下壁: room.y + room.h - 1
+            if (level.getTile(x, room.y) === '+') exits.push({ x: x, y: room.y });
+            if (level.getTile(x, room.y + room.h - 1) === '+') exits.push({ x: x, y: room.y + room.h - 1 });
+        }
+        // 左右辺
+        for (let y = room.y; y < room.y + room.h; y++) {
+            // 左壁: room.x, 右壁: room.x + room.w - 1
+            if (level.getTile(room.x, y) === '+') exits.push({ x: room.x, y: y });
+            if (level.getTile(room.x + room.w - 1, y) === '+') exits.push({ x: room.x + room.w - 1, y: y });
+        }
+
+        if (exits.length === 0) return;
+
+        // 今入ってきたドア（直前の位置と一致するもの）を除外
+        if (this.lastX !== null) {
+            const filtered = exits.filter(e => {
+                // ドア座標が lastX, lastY と一致するなら除外
+                return (e.x !== this.lastX || e.y !== this.lastY);
+            });
+
+            // filteredがあればそちらを使う
+            if (filtered.length > 0) {
+                const target = filtered[Math.floor(Math.random() * filtered.length)];
+                this.tcol = target.x;
+                this.trow = target.y;
+                return;
+            }
+        }
+
+        // 入ってきたドアしか無い、またはlastXがない場合は適当に選ぶ
+        const target = exits[Math.floor(Math.random() * exits.length)];
+        this.tcol = target.x;
+        this.trow = target.y;
+    }
+
+    // 旧メソッド (名前変更済み)
+    continueChasingOld(level) {
+        const tile = level.getTile(this.x, this.y);
+        // ドア(+) または 通路(#) にいる場合のみ
+        if (tile !== '+' && tile !== '#') return;
+
+        const dirs = [
+            { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }
+        ];
+
+        // ランダムにシャッフルして、毎回同じ方向ばかり選ばないようにする
+        for (let i = dirs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+        }
+
+        for (let d of dirs) {
+            const nx = this.x + d.x;
+            const ny = this.y + d.y;
+
+            // 直前の位置には戻らない
+            if (this.lastX !== null && nx === this.lastX && ny === this.lastY) {
+                continue;
+            }
+
+            const nextTile = level.getTile(nx, ny);
+            // 通路(#) または ドア(+) へ進む
+            if (nextTile === '#' || nextTile === '+') {
+                this.tcol = nx;
+                this.trow = ny;
+                return;
+            }
+        }
+    }
+
+    // ターゲットに向かって移動
     moveToTarget(targetX, targetY, level, monsters = [], player = null) {
         const dx = Math.sign(targetX - this.x);
         const dy = Math.sign(targetY - this.y);
 
+        // 移動に成功したら lastX/Y を更新するラッパー
+        const tryMove = (newX, newY) => {
+            if (this.canMoveTo(newX, newY, level, monsters, player)) {
+                this.lastX = this.x;
+                this.lastY = this.y;
+                this.x = newX;
+                this.y = newY;
+                return true;
+            }
+            return false;
+        };
+
         // まず斜め移動を試みる
         if (dx !== 0 && dy !== 0) {
-            if (this.canMoveTo(this.x + dx, this.y + dy, level, monsters, player)) {
-                this.x += dx;
-                this.y += dy;
-                return;
-            }
+            if (tryMove(this.x + dx, this.y + dy)) return;
         }
 
         // 斜めが無理ならX軸優先
         if (dx !== 0) {
-            if (this.canMoveTo(this.x + dx, this.y, level, monsters, player)) {
-                this.x += dx;
-                return;
-            }
+            if (tryMove(this.x + dx, this.y)) return;
         }
 
         // Y軸を試す
         if (dy !== 0) {
-            if (this.canMoveTo(this.x, this.y + dy, level, monsters, player)) {
-                this.y += dy;
-                return;
-            }
+            if (tryMove(this.x, this.y + dy)) return;
         }
 
         // どちらも無理なら...
-        // オリジナルではここでもう少し賢い回避(mtry)をするが、とりあえずランダム
         this.randomMove(level, monsters);
     }
 
