@@ -613,7 +613,8 @@ export class Item {
             return msg;
         }
         else if (this.type === 'food') {
-            player.hunger = Math.max(0, player.hunger - this.value);
+            // 空腹度を回復（増やす）。最大値は1300
+            player.hunger = Math.min(1300, player.hunger + this.value);
             return '食料を食べた。満腹になった！';
         }
         return 'それは使えない。';

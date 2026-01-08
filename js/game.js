@@ -236,7 +236,7 @@ class Game {
                 const x = room.x + Math.floor(Math.random() * room.w);
                 const y = room.y + Math.floor(Math.random() * room.h);
 
-                if (this.level.isWalkable(x, y) && !this.isPositionOccupied(x, y)) {
+                if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                     const type = candidates[Math.floor(Math.random() * candidates.length)];
                     this.monsters.push(new Monster(type, x, y));
                 }
@@ -287,7 +287,7 @@ class Game {
                 const x = room.x + Math.floor(Math.random() * room.w);
                 const y = room.y + Math.floor(Math.random() * room.h);
 
-                if (this.level.isWalkable(x, y) && !this.isPositionOccupied(x, y)) {
+                if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                     // object.c gr_what_is: scroll 30%, potion 30%, wand 4%, weapon 10%, armor 9%, food 5%, ring 3%, gold 9%
                     const rand = Math.random() * 100;
                     let type = '*';
@@ -352,11 +352,9 @@ class Game {
                 actionTaken = this.useItem(action.index);
                 break;
             case 'menu':
-                this.openMenu();
+                this.openInventory();
                 return;
             case 'inventory':
-                this.openInventory(); // showInventoryではなくopenInventoryに統一した方が良いが、outlineに従う
-                // showInventoryがあるならそちらを使う
                 this.showInventory();
                 return;
             case 'stairs':

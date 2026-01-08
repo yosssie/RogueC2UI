@@ -116,13 +116,33 @@ export class Level {
         for (let j = 0; j < MAXROOMS; j++) {
             const i = random_rooms[j];
 
+            // 基本接続: 横(i+1)と縦(i+3)
             if (i < (MAXROOMS - 1)) {
                 this.connect_rooms(i, i + 1);
             }
             if (i < (MAXROOMS - 3)) {
                 this.connect_rooms(i, i + 3);
             }
-            // 交差接続 (CROSS) などは一旦省略し、基本接続を優先
+
+            // 交差接続: i+2 (横2つ飛ばし)
+            if (i < (MAXROOMS - 2)) {
+                if ((this.rooms[i + 1].is_room & R_NOTHING) &&
+                    (i + 1 !== 4 || vertical)) {
+                    if (this.connect_rooms(i, i + 2)) {
+                        this.rooms[i + 1].is_room = R_CROSS;
+                    }
+                }
+            }
+
+            // 交差接続: i+6 (縦2つ飛ばし)
+            if (i < (MAXROOMS - 6)) {
+                if ((this.rooms[i + 3].is_room & R_NOTHING) &&
+                    (i + 3 !== 4 || !vertical)) {
+                    if (this.connect_rooms(i, i + 6)) {
+                        this.rooms[i + 3].is_room = R_CROSS;
+                    }
+                }
+            }
 
             if (this.is_all_connected()) {
                 break;
