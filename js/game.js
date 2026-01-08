@@ -850,7 +850,15 @@ class Game {
 
         // 攻撃判定
         // 斜め攻撃もありなら <= 1 で判定 (dx<=1 && dy<=1 && !(dx=0,dy=0))
+        let canAttack = false;
         if (dx <= 1 && dy <= 1 && (dx !== 0 || dy !== 0)) {
+            // 壁越し攻撃防止 (canMoveチェック)
+            if (this.level.canMove(monster.x, monster.y, this.player.x, this.player.y)) {
+                canAttack = true;
+            }
+        }
+
+        if (canAttack) {
             // 攻撃
             this.resolveAttack(monster, this.player);
         } else {
