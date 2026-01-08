@@ -17,9 +17,20 @@ import { RingManager } from './ring.js';
 import { WandManager } from './wand.js';
 import { Mesg } from './mesg_J.js';
 
+// オリジナルRogueのクリアバナーデータ (score.c ban)
+const BANNER_DATA = [
+    [0x88, 0x00, 0x08, 0x80, 0x08, 0x01, 0xc8, 0x20],
+    [0x88, 0x00, 0x0d, 0x80, 0x08, 0x00, 0x88, 0x20],
+    [0x89, 0xc8, 0x8a, 0x9c, 0x79, 0xc0, 0x9c, 0x20],
+    [0x7a, 0x28, 0x88, 0x82, 0x8a, 0x20, 0x88, 0x20],
+    [0x0a, 0x28, 0x88, 0x9e, 0x8b, 0xe0, 0x88, 0x20],
+    [0x8a, 0x29, 0x88, 0xa2, 0x8a, 0x00, 0x89, 0x00],
+    [0x71, 0xc6, 0x88, 0x9e, 0x79, 0xc1, 0xc6, 0x20]
+];
+
 // デバッグモードはタイトル画面で選択
 
-class Game {
+export class Game {
     constructor() {
         this.state = 'title'; // title, playing, menu, config, gameover
         this.display = new Display();
@@ -57,7 +68,7 @@ class Game {
         const handleStart = (e) => {
             console.log('🔑 Key pressed:', e.key, 'State:', this.state);
             if (this.state === 'title') {
-                if (e.key === 'Enter') {
+                if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter') {
                     console.log('✅ Starting normal game!');
                     document.removeEventListener('keydown', handleStart);
                     this.debugMode = false;
@@ -79,6 +90,7 @@ class Game {
 
         // ゲーム状態をリセット
         this.currentFloor = 1;
+        this.maxLevel = 1;
         this.turnCount = 0;
         this.monsters = [];
         this.items = [];
@@ -89,6 +101,12 @@ class Game {
 
         // 指輪効果をリセット (プレイヤー作成後に実行)
         this.ringManager.ringStats(false);
+
+        // 罠マネージャリセット
+        this.trapManager.reset();
+
+        // メッセージログクリア
+        this.display.clearMessageLog();
 
         // 初期装備 (init.c player_init 準拠)
         // 初期装備 (init.c player_init 準拠)
@@ -161,6 +179,10 @@ class Game {
     generateFloor() {
         console.log(`📍 Generating floor ${this.currentFloor}...`);
 
+        if (this.currentFloor > this.maxLevel) {
+            this.maxLevel = this.currentFloor;
+        }
+
         if (this.debugMode) {
             console.log('🔧 DEBUG MODE: Using fixed dungeon layout');
             this.level = new DebugLevel(90, 30);
@@ -195,6 +217,13 @@ class Game {
 
         // アイテム配置
         this.spawnItems();
+
+        // デバッグモード追加アイテム
+        if (this.debugMode) {
+            // イェンダーの魔除け配置 (75, 3) = 階段 (76, 3) の隣
+            const amulet = new Item(',', 75, 3, 'amulet');
+            this.items.push(amulet);
+        }
 
         // 罠配置 (trap.c add_traps())
         if (this.debugMode) {
@@ -324,6 +353,11 @@ class Game {
             }
         } else {
             // 通常モード
+            // 帰還中（到達済み階層への移動）はアイテムを生成しない (object.c put_objects)
+            if (this.currentFloor < this.maxLevel) {
+                return;
+            }
+
             // アイテム生成数 (object.c put_objects)
             // n = coin_toss()? get_rand(2, 4) : get_rand(3, 5);
             let n = (Math.random() < 0.5) ? (2 + Math.floor(Math.random() * 3)) : (3 + Math.floor(Math.random() * 3));
@@ -364,6 +398,28 @@ class Game {
 
             // 金貨生成 (オリジナルでは別処理)
             this.spawnGold();
+
+            // 魔除け (Amulet of Yendor) の生成
+            // 26階以降、かつ所持していない場合
+            if (this.currentFloor >= 26 && !this.player.inventory.some(i => i.id === 'amulet')) {
+                const validRooms = this.level.rooms.filter(r => r.is_room & 1);
+                if (validRooms.length > 0) {
+                    let placed = false;
+                    let attempts = 0;
+                    while (!placed && attempts < 100) {
+                        attempts++;
+                        const room = validRooms[Math.floor(Math.random() * validRooms.length)];
+                        const x = room.x + Math.floor(Math.random() * room.w);
+                        const y = room.y + Math.floor(Math.random() * room.h);
+
+                        if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
+                            const amulet = new Item(',', x, y, 'amulet');
+                            this.items.push(amulet);
+                            placed = true;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -452,10 +508,76 @@ class Game {
                 return;
             case 'stairs':
                 if (this.level.getTile(this.player.x, this.player.y) === '%') {
-                    this.nextLevel();
+                    let goUp = false;
+                    let goDown = false;
+
+                    if (action.direction === 'up') goUp = true;
+                    else if (action.direction === 'down') goDown = true;
+                    else {
+                        // 自動判別: 魔除けがあれば上る
+                        if (this.player.inventory.some(item => item.id === 'amulet')) {
+                            goUp = true;
+                        } else {
+                            goDown = true;
+                        }
+                    }
+
+                    if (goUp) {
+                        // イェンダーの魔除けチェック
+                        if (this.player.inventory.some(item => item.id === 'amulet')) {
+                            this.currentFloor--;
+
+                            if (this.currentFloor <= 0) {
+                                this.gameClear();
+                                return;
+                            }
+
+                            this.display.showMessage(`${this.currentFloor}階に上った。`);
+
+                            // 階層移動時のステータスリセット
+                            this.player.status.detectMonster = 0;
+                            this.player.status.detectObjects = 0;
+                            this.player.status.seeInvisible = false;
+                            this.player.status.held = false;
+                            this.player.status.bearTrap = 0;
+
+                            this.generateFloor();
+                            if (this.inGameDebugMode) {
+                                this.level.revealAll();
+                            }
+                            this.updateDisplay();
+                        } else {
+                            this.display.showMessage("上れません。");
+                        }
+                    } else {
+                        this.nextLevel();
+                    }
                 } else {
                     this.display.showMessage('ここには階段がない。');
                 }
+                return;
+            case 'debug_ascend':
+                this.currentFloor--;
+                if (this.currentFloor <= 0) {
+                    this.gameClear();
+                    return;
+                }
+                this.display.showMessage(`${this.currentFloor}階へワープした。(Debug)`);
+                // 階層移動時のステータスリセット
+                this.player.status.detectMonster = 0;
+                this.player.status.detectObjects = 0;
+                this.player.status.seeInvisible = false;
+                this.player.status.held = false;
+                this.player.status.bearTrap = 0;
+
+                this.generateFloor();
+                if (this.inGameDebugMode) {
+                    this.level.revealAll();
+                }
+                this.updateDisplay();
+                return;
+            case 'debug_descend':
+                this.nextLevel();
                 return;
             case 'debug':
                 // ゲーム中デバッグモード切り替え
@@ -969,7 +1091,7 @@ class Game {
 
         // プレイヤーが生きている場合のみ空腹度処理
         if (this.player.hp > 0) {
-            const hungerAmount = 1 + this.ringManager.getHungerModifier();
+            let hungerAmount = 1 + this.ringManager.getHungerModifier();
             const hungerMsg = this.player.updateHunger(Math.max(0, hungerAmount));
             if (hungerMsg) {
                 this.display.showMessage(hungerMsg);
@@ -1031,7 +1153,7 @@ class Game {
             if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                 // 生成成功
                 const monster = new MonsterClass(type, x, y);
-                // WANDERERフラグなどがあればここで設定するが、デフォルトでOK
+                // WANDERSフラグなどがあればここで設定するが、デフォルトでOK
                 // Rogueでは湧いたモンスターは WANDERS フラグを持つことが多い
                 monster.setFlag(MonsterClass.FLAGS.WANDERS);
                 this.monsters.push(monster);
@@ -1266,7 +1388,11 @@ class Game {
             return;
         }
         this.state = 'inventory';
+
+        // 足元のアイテム・階段があればそこにカーソルを合わせる
+        // 足元アイテムがあっても常に一番上を選択
         this.inventoryIndex = 0;
+
         this.display.updateInventoryCursor(this.inventoryIndex);
         this.display.showMessage('持ち物を選択中... (A:決定, B:戻る)');
         this.updateDisplay(); // 足元アイテム表示のために更新
@@ -1331,7 +1457,12 @@ class Game {
         if (item._isAtFeet || item._isStairs) {
             if (item._isAtFeet) {
                 this.subMenuOptions.push({ label: '拾う', action: 'pickup' });
-            } else {
+            } else if (item._isStairs) {
+                // 階段の場合
+                // イェンダーの魔除けチェック
+                if (this.player.inventory.some(i => i.id === 'amulet')) {
+                    this.subMenuOptions.push({ label: '上る', action: 'ascend' });
+                }
                 this.subMenuOptions.push({ label: '降りる', action: 'descend' });
             }
             this.subMenuOptions.push({ label: 'やめる', action: 'cancel' });
@@ -1432,10 +1563,15 @@ class Game {
                     this.processTurn();
                 }
                 break;
+            case 'ascend':
+                this.closeSubMenu();
+                this.closeInventory();
+                this.handlePlayerAction({ type: 'stairs', direction: 'up' });
+                break;
             case 'descend':
                 this.closeSubMenu();
                 this.closeInventory();
-                this.nextLevel();
+                this.handlePlayerAction({ type: 'stairs', direction: 'down' }); // 方向指定を付加
                 break;
             case 'use':
                 this.closeSubMenu(); // サブメニュー閉じる
@@ -1560,14 +1696,8 @@ class Game {
     }
 
     showInventory() {
-        if (this.player.inventory.length === 0) {
-            this.display.showMessage('インベントリは空です。');
-        } else {
-            const items = this.player.inventory.map((item, index) =>
-                `${index + 1}:${item.getDisplayName()}`
-            ).join(', ');
-            this.display.showMessage(`インベントリ: ${items} (数字キーで使用)`);
-        }
+        // メッセージ表示は廃止し、インベントリ画面を開く
+        this.openInventory();
     }
 
     useItem(index) {
@@ -2267,6 +2397,75 @@ class Game {
         // TODO: 将来的にはマップ全体を別画面で表示する機能を追加
     }
 
+    // ゲームクリア（勝利）
+    gameClear() {
+        this.state = 'victory';
+
+        // ゲームクリア時はデバッグモードを強制オフ
+        if (this.inGameDebugMode) {
+            this.inGameDebugMode = false;
+            if (this.display.debugMode) {
+                this.display.toggleDebugMode();
+            }
+        }
+
+        // 売却計算とゴールド加算
+        this.sellResults = [];
+        let totalValue = 0;
+        const newInventory = [];
+
+        this.player.inventory.forEach(item => {
+            if (item.type === 'food') {
+                newInventory.push(item);
+            } else {
+                item.isIdentified = true; // 全識別
+                const val = this.getItemWorth(item);
+                totalValue += val;
+                this.sellResults.push({
+                    name: item.getDisplayName(),
+                    value: val
+                });
+            }
+        });
+
+        this.player.inventory = newInventory;
+        this.player.gold += totalValue;
+
+        // バナー画面表示 (Display.js)
+        this.display.drawVictory(BANNER_DATA, Mesg);
+    }
+
+    // 売却画面表示 (InputManagerから呼ばれる)
+    showSellingScreen() {
+        this.state = 'selling';
+        this.display.drawSelling(this.sellResults, Mesg);
+    }
+
+    // ゲーム終了・ランキングへ (InputManagerから呼ばれる)
+    finishGame() {
+        this.state = 'gameover';
+        this.scoreManager.killedBy(null, this.scoreManager.DEATH_CAUSES.WIN);
+        this.waitForRanking();
+    }
+
+    // アイテムの価値取得 (簡易実装)
+    getItemWorth(item) {
+        // TODO: オリジナル準拠の価値(worth)を定義する必要あり
+        let worth = 0;
+        switch (item.type) {
+            case 'weapon': worth = 80; break;
+            case 'armor': worth = 100; break;
+            case 'scroll': worth = 50; break;
+            case 'potion': worth = 50; break;
+            case 'wand': worth = 150; break;
+            case 'ring': worth = 200; break;
+            case 'amulet': worth = 1000; break;
+            default: worth = 10; break;
+        }
+        // 識別済みなら価値が上がるなどの要素もオリジナルにはある
+        return worth;
+    }
+
     gameOver(monster = null, cause = null) {
         this.state = 'gameover';
 
@@ -2290,7 +2489,7 @@ class Game {
 
     waitForRanking() {
         const handleKey = (e) => {
-            if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter') {
                 document.removeEventListener('keydown', handleKey);
 
                 // 現在gameover画面ならランキングへ、ranking画面ならタイトルへ

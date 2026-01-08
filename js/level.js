@@ -110,6 +110,14 @@ export class Level {
             this.make_room(i, must_exist1, must_exist2, must_exist3);
         }
 
+        // ログ出力: 生成された部屋の状態
+        console.log("--- Level Generation ---");
+        for (let i = 0; i < MAXROOMS; i++) {
+            const r = this.rooms[i];
+            const type = (r.is_room & R_ROOM) ? "ROOM" : (r.is_room & R_NOTHING) ? "NOTHING" : "OTHER";
+            console.log(`Room ${i}: ${type}, Pos:(${r.left_col},${r.top_row})-(${r.right_col},${r.bottom_row})`);
+        }
+
         // 接続処理 (mix_random_rooms省略、単純なランダム順で)
         const random_rooms = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
 
@@ -152,6 +160,7 @@ export class Level {
                 break;
             }
         }
+
 
         // 5. 階段配置
         this.placeStairs();
@@ -196,6 +205,10 @@ export class Level {
             this.rooms[rn].bottom_row = bottom_row;
             this.rooms[rn].left_col = left_col;
             this.rooms[rn].right_col = right_col;
+
+            // R_CROSSに昇格したときのために、接続中心点（交差点）を決めておく
+            this.rooms[rn].cross_row = top_row + Math.floor(Math.random() * (bottom_row - top_row + 1));
+            this.rooms[rn].cross_col = left_col + Math.floor(Math.random() * (right_col - left_col + 1));
             return;
         }
 
@@ -260,28 +273,38 @@ export class Level {
         }
 
         // ドア位置決定＆配置
+        // ドア位置決定＆配置
         const door1 = this.put_door(this.rooms[room1], dir);
         const door2 = this.put_door(this.rooms[room2], rev);
 
         // 通路描画
-        // オリジナルはdo-whileでrand_percent(4)でループして複数引くことがあるが、今回は1本
         this.draw_simple_passage(door1.row, door1.col, door2.row, door2.col, dir);
 
         // 接続情報を記録
-        // オリジナルのロジック:
-        // index logic: UP(0)/2=0, RIGHT(1)/2=0... ? 
-        // オリジナルの dir定義: UPWARD=0, UP=0, RIGHT=1, DOWN=2, LEFT=3
-        // doors 配列は要素4つなので、dirそのままでよさそうだが、オリジナルは `dir / 2` している？
-        // ああ、オリジナルは doors[MAXDIRS/2] なのか？ -> room.h 見ると doors[4] です。
-        // level.c: dp = &(rooms[room1].doors[dir / 2]); なぜ割る？
-        //  -> rooms構造体定義を確認する必要があるが、JS版では単純に dir をインデックスにする
         this.rooms[room1].doors[dir].oth_room = room2;
+        this.rooms[room1].doors[dir].door_row = door1.row;
+        this.rooms[room1].doors[dir].door_col = door1.col;
+        this.rooms[room1].doors[dir].oth_row = door2.row;
+        this.rooms[room1].doors[dir].oth_col = door2.col;
+
         this.rooms[room2].doors[rev].oth_room = room1;
+        this.rooms[room2].doors[rev].door_row = door2.row;
+        this.rooms[room2].doors[rev].door_col = door2.col;
+        this.rooms[room2].doors[rev].oth_row = door1.row;
+        this.rooms[room2].doors[rev].oth_col = door1.col;
 
         return true;
     }
 
     put_door(rm, dir) {
+        // 部屋でない(R_CROSS)の場合は、予め決めておいた中心座標を返す
+        if (!(rm.is_room & R_ROOM)) {
+            const row = rm.cross_row;
+            const col = rm.cross_col;
+            this.tiles[row][col] = '#';
+            return { row, col };
+        }
+
         let row, col;
         // wall_width = 1 (R_ROOM)
 
@@ -303,16 +326,22 @@ export class Level {
         }
 
         // 隠し扉判定 (20%で隠し扉)
-        if (Math.random() < 0.2) {
-            // 見た目を壁にする
-            if (dir === UPWARD || dir === DOWN) {
-                this.tiles[row][col] = '-';
+        // ただし、部屋でない(R_CROSS)の場合は常に通路にする
+        if (rm.is_room & R_ROOM) {
+            if (Math.random() < 0.2) {
+                // 見た目を壁にする
+                if (dir === UPWARD || dir === DOWN) {
+                    this.tiles[row][col] = '-';
+                } else {
+                    this.tiles[row][col] = '|';
+                }
+                this.hiddenObjects[row][col] = Level.HIDDEN_DOOR;
             } else {
-                this.tiles[row][col] = '|';
+                this.tiles[row][col] = '+';
             }
-            this.hiddenObjects[row][col] = Level.HIDDEN_DOOR;
         } else {
-            this.tiles[row][col] = '+';
+            // R_CROSS (交差点): 部屋がないのでドアではなく通路にする
+            this.tiles[row][col] = '#';
         }
 
         return { row, col };
@@ -391,8 +420,9 @@ export class Level {
     put_tunnel(y, x) {
         if (this.isInBounds(x, y)) {
             const current = this.tiles[y][x];
-            // 部屋、壁、ドアは上書きしない
-            if (current !== '.' && current !== '-' && current !== '|' && current !== '+') {
+            // 空白または通路なら通路にする（部屋や壁・ドアは壊さない）
+            // current === '#' の場合も上書きしてOK
+            if (current === ' ' || current === '#') {
                 this.tiles[y][x] = '#';
             }
         }
@@ -436,6 +466,54 @@ export class Level {
     }
     same_col(room1, room2) {
         return (room1 % 3) === (room2 % 3);
+    }
+
+    // 交差点部屋内の通路接続
+    connect_passages_in_cross_rooms() {
+        for (let i = 0; i < MAXROOMS; i++) {
+            const room = this.rooms[i];
+            // R_CROSS かつ R_ROOM でない場合
+            if (room.is_room & R_CROSS) {
+                // 有効なドア座標リストを作成
+                const points = [];
+                for (let d = 0; d < 4; d++) {
+                    if (room.doors[d].oth_room !== NO_ROOM) {
+                        points.push({
+                            row: room.doors[d].door_row,
+                            col: room.doors[d].door_col
+                        });
+                    }
+                }
+
+                // 2点以上あればつなぐ
+                if (points.length >= 2) {
+                    // 重心（平均座標）を計算してハブにする
+                    let sumRow = 0, sumCol = 0;
+                    points.forEach(p => { sumRow += p.row; sumCol += p.col; });
+                    const centerRow = Math.floor(sumRow / points.length);
+                    const centerCol = Math.floor(sumCol / points.length); // ※横移動で使う
+
+                    // 全ての点から重心行(centerRow)へ縦移動し、そこで合流させるスタイル
+                    // これにより形は「串」または「あみだくじ」状になりシンプルになる
+                    points.forEach(p => {
+                        // 1. 縦移動: 自分の位置(p.row)から重心行(centerRow)まで
+                        let rStart = Math.min(p.row, centerRow);
+                        let rEnd = Math.max(p.row, centerRow);
+                        for (let y = rStart; y <= rEnd; y++) {
+                            this.put_tunnel(y, p.col);
+                        }
+
+                        // 2. 横移動: 自分の列(p.col)から重心列(centerCol)まで（行はcenterRow上）
+                        // これで全員が (centerRow, centerCol) で完全につながる
+                        let cStart = Math.min(p.col, centerCol);
+                        let cEnd = Math.max(p.col, centerCol);
+                        for (let x = cStart; x <= cEnd; x++) {
+                            this.put_tunnel(centerRow, x);
+                        }
+                    });
+                }
+            }
+        }
     }
 
     placeStairs() {

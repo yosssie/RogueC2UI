@@ -8,6 +8,8 @@ export class Display {
         this.gameScreen = document.getElementById('game-screen');
         this.menuScreen = document.getElementById('menu-screen');
         this.configScreen = document.getElementById('config-screen');
+        this.victoryScreen = document.getElementById('victory-screen');
+        this.sellingScreen = document.getElementById('selling-screen');
 
         this.messageLog = document.getElementById('message-log');
         this.dungeonDisplay = document.getElementById('dungeon-display');
@@ -130,10 +132,18 @@ Mon:${nearbyMonsters}`;
         this.showMessage(`フォントサイズを変更しました: ${sizeName}`);
     }
 
+    clearMessageLog() {
+        this.messageLog.innerHTML =
+            `<li class="old-message"></li>` +
+            `<li class="old-message"></li>` +
+            `<li class="old-message"></li>` +
+            `<li class="current-message"></li>`;
+    }
+
     showScreen(screenName) {
         // 全画面を非表示（静的な画面）
-        [this.titleScreen, this.gameScreen, this.menuScreen, this.configScreen].forEach(screen => {
-            screen.classList.remove('active');
+        [this.titleScreen, this.gameScreen, this.menuScreen, this.configScreen, this.victoryScreen, this.sellingScreen].forEach(screen => {
+            if (screen) screen.classList.remove('active');
         });
 
         // 動的に作成された画面も非表示
@@ -155,6 +165,12 @@ Mon:${nearbyMonsters}`;
                 break;
             case 'config':
                 this.configScreen.classList.add('active');
+                break;
+            case 'victory':
+                this.victoryScreen.classList.add('active');
+                break;
+            case 'selling':
+                this.sellingScreen.classList.add('active');
                 break;
             case 'gameover':
                 // gameover-screenは動的に作成されるので、存在確認
@@ -627,4 +643,113 @@ Mon:${nearbyMonsters}`;
         this.renderDungeon(level, player, monsters, items, null, trapManager, debugMode);
     }
 
+    // クリア画面（バナーとメッセージ）
+    drawVictory(bannerData, Mesg) {
+        this.showScreen('victory');
+
+        this.victoryScreen.innerHTML = '';
+        this.victoryScreen.style.backgroundColor = '#000';
+        this.victoryScreen.style.color = '#fff';
+        this.victoryScreen.style.fontFamily = 'monospace';
+
+        const container = document.createElement('div');
+        container.style.fontSize = '1.2rem'; // 追加
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+        container.style.height = '100%';
+
+        // バナー描画
+        const bannerDiv = document.createElement('div');
+        bannerDiv.style.lineHeight = '0.6'; // 行間調整
+        bannerDiv.style.marginBottom = '2rem';
+
+        bannerData.forEach(row => {
+            let rowStr = '';
+            for (let i = 0; i < 59; i++) { // 0-58
+                // bit check
+                const byte = row[i >> 3];
+                const mask = 0x80 >> (i & 7);
+                if (byte & mask) {
+                    rowStr += '@'; // オリジナルは @ 
+                } else {
+                    rowStr += ' ';
+                }
+            }
+            const line = document.createElement('div');
+            line.textContent = rowStr.replace(/ /g, '\u00A0'); // nbsp
+            line.style.whiteSpace = 'pre';
+            line.style.color = '#0f0'; // 緑色？ オリジナルは環境による
+            bannerDiv.appendChild(line);
+        });
+        container.appendChild(bannerDiv);
+
+        // メッセージ
+        const msgDiv = document.createElement('div');
+        msgDiv.style.textAlign = 'center';
+        msgDiv.style.lineHeight = '2';
+
+        [182, 183, 184, 185].forEach(id => {
+            const p = document.createElement('div');
+            p.textContent = Mesg[id];
+            msgDiv.appendChild(p);
+        });
+        container.appendChild(msgDiv);
+
+        // キー待ちガイド
+        const guide = document.createElement('div');
+        guide.textContent = "-- Press Button A to continue --";
+        guide.style.marginTop = '3rem';
+        guide.style.color = '#888';
+        container.appendChild(guide);
+
+        this.victoryScreen.appendChild(container);
+    }
+
+    // 売却画面
+    drawSelling(sellResults, Mesg) {
+        this.showScreen('selling');
+        this.sellingScreen.innerHTML = '';
+
+        // 画面中央に配置、幅を制限
+        const container = document.createElement('div');
+        container.style.width = '100%';
+        container.style.maxWidth = '800px';
+        container.style.margin = '0 auto';  // 中央寄せ
+        container.style.padding = '2rem 1rem'; // 上下マージン、左右パディング
+
+        container.style.fontFamily = 'monospace';
+        container.style.height = '100%';
+        container.style.overflowY = 'auto';
+        container.style.color = '#ccc';
+        container.style.fontSize = '1.2rem';
+
+        // ヘッダ
+        const header = document.createElement('div');
+        header.textContent = Mesg[198]; // " 価格      持ちもの"
+        header.style.borderBottom = '1px solid #fff';
+        header.style.marginBottom = '1rem';
+        container.appendChild(header);
+
+        // リスト
+        sellResults.forEach(item => {
+            const row = document.createElement('div');
+            row.style.marginBottom = '0.5rem';
+            // 金額は5桁右寄せ
+            const valStr = String(item.value).padStart(5, ' ');
+            // アイテム名は11文字目から
+            row.textContent = `${valStr}      ${item.name}`;
+            container.appendChild(row);
+        });
+
+        // キー待ち
+        const guide = document.createElement('div');
+        guide.textContent = "-- Press Button A to continue --";
+        guide.style.marginTop = '2rem';
+        guide.style.color = '#888';
+        container.appendChild(guide);
+
+        this.sellingScreen.appendChild(container);
+    }
 }

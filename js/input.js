@@ -69,6 +69,10 @@ export class InputManager {
             this.handleTargetingInput(e);
         } else if (this.game.state === 'death_message') {
             this.handleDeathMessageInput(e);
+        } else if (this.game.state === 'victory') {
+            this.handleVictoryInput(e);
+        } else if (this.game.state === 'selling') {
+            this.handleSellingInput(e);
         }
     }
 
@@ -147,8 +151,14 @@ export class InputManager {
         // Bボタン(X)が押されているかチェック(ダッシュモディファイア)
         const isDashMode = this.bButtonPressed;
 
+        // デバッグ: 階層移動
+        if (this.game.inGameDebugMode && (key === 'Comma' || e.key === ',')) {
+            action = { type: 'debug_ascend' };
+        } else if (this.game.inGameDebugMode && (key === 'Period' || e.key === '.')) {
+            action = { type: 'debug_descend' };
+        }
         // 移動(十字キー + Home/End/PageUp/PageDown + テンキー)
-        if (key === this.keyConfig.up || key === 'Numpad8') {
+        else if (key === this.keyConfig.up || key === 'Numpad8') {
             action = { type: isDashMode ? 'dash' : 'move', dx: 0, dy: -1 };
         } else if (key === this.keyConfig.down || key === 'Numpad2') {
             action = { type: isDashMode ? 'dash' : 'move', dx: 0, dy: 1 };
@@ -285,6 +295,22 @@ export class InputManager {
                     this.game.waitForStart();
                 }
                 break;
+        }
+    }
+
+
+    handleVictoryInput(e) {
+        e.preventDefault();
+        // AボタンまたはEnterで次へ
+        if (e.code === this.keyConfig.buttonA || e.key === 'Enter') {
+            this.game.showSellingScreen();
+        }
+    }
+
+    handleSellingInput(e) {
+        e.preventDefault();
+        if (e.code === this.keyConfig.buttonA || e.key === 'Enter') {
+            this.game.finishGame();
         }
     }
 }

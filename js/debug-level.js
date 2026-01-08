@@ -28,7 +28,7 @@ export class DebugLevel extends Level {
         this.createFixedRoom(2, 1, 76, 5, 'storage');
 
         // 階段（倉庫の右端）
-        this.tiles[6][76] = '%';
+        this.tiles[3][76] = '%';
 
         // 2. モンスター実験場 (下部エリア)
         // 9列 x 3行

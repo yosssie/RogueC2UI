@@ -71,6 +71,12 @@ export class TrapManager {
         this.bearTrapTurns = 0;      // 熊の罠の拘束ターン数
     }
 
+    reset() {
+        this.traps = [];
+        this.trapDoorActive = false;
+        this.bearTrapTurns = 0;
+    }
+
     // trap_at() - 指定座標に罠があるかチェック
     trapAt(row, col) {
         const trap = this.traps.find(t => t.row === row && t.col === col);

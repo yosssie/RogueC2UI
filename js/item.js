@@ -132,6 +132,10 @@ export class Item {
                 { id: 'ring_see_invis', name: '透明視認の指輪', prob: 10, type: 'ring', ringType: 8 },
                 { id: 'ring_maintain_armor', name: '防具維持の指輪', prob: 5, type: 'ring', ringType: 9 },
                 { id: 'ring_search', name: '探索の指輪', prob: 10, type: 'ring', ringType: 10 }
+            ],
+            // アミュレット
+            ',': [
+                { id: 'amulet', name: 'イェンダーの魔除け', prob: 0, type: 'amulet' }
             ]
         };
 

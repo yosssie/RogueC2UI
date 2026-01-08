@@ -2,6 +2,8 @@
 // スコア管理 (score.c 移植)
 // ===========================
 
+import { Mesg } from './mesg_J.js';
+
 export class ScoreManager {
     constructor(game) {
         this.game = game;
@@ -120,7 +122,7 @@ export class ScoreManager {
         const tombDiv = document.getElementById('tombstone');
         if (tombDiv) {
             // 各行を個別に配置（オリジナルのmvaddstr_rogue相当）
-            let html = '<div style="font-family: \'Noto Sans Mono\', monospace; color: #888; line-height: 1.2; position: relative; width: 80ch; margin: 0 auto;">';
+            let html = '<div style="font-size: 1.2rem; font-family: \'Noto Sans Mono\', monospace; color: #888; line-height: 1.2; position: relative; width: 80ch; margin: 0 auto;">';
 
             // 墓石の各行を表示（Y座標: i+3）
             tombstone.forEach((line, i) => {
@@ -139,7 +141,7 @@ export class ScoreManager {
             html += '</div>';
 
             // メッセージ
-            html += '<div style="text-align: center; margin-top: 2rem; color: #888;">Enterキーでランキングを表示</div>';
+            html += '<div style="text-align: center; margin-top: 2rem; color: #888;">Aボタンでランキングを表示</div>';
 
             tombDiv.innerHTML = html;
         }
@@ -160,17 +162,24 @@ export class ScoreManager {
 
         const tombDiv = document.getElementById('tombstone');
         if (tombDiv) {
-            tombDiv.innerHTML = `<div style="text-align: center; color: #ff0; font-size: 2rem; margin-top: 3rem;">
-    <div style="margin-bottom: 2rem;">🏆 YOU WIN! 🏆</div>
-    <div style="font-size: 1.2rem; color: #fff;">おめでとうございます！</div>
-    <div style="font-size: 1rem; color: #aaa; margin-top: 1rem;">
-        アミュレットを持って無事に脱出しました。<br>
-        あなたは冒険者ギルドに認められ、<br>
-        財宝を売って悠々自適な生活を送りました。
-    </div>
-    ${rank >= 0 && rank < 10 ? `<div style="color: #ff0; margin-top: 2rem; font-weight: bold;">第${rank + 1}位にランクイン！</div>` : ''}
-    <div style="margin-top: 3rem; color: #888;">Enterキーでランキングを表示</div>
-</div>`;
+            if (tombDiv) {
+                // オリジナルRogueのメッセージ (mesg_J.js: 182-185)
+                // 中央揃えで表示
+                let html = '<div style="text-align: center; color: #ff0; font-size: 1.2rem; margin-top: 5rem; line-height: 2;">';
+                html += `<div>${Mesg[182]}</div>`;
+                html += `<div>${Mesg[183]}</div>`;
+                html += `<div>${Mesg[184]}</div>`;
+                html += `<div>${Mesg[185]}</div>`;
+
+                if (rank >= 0 && rank < 10) {
+                    html += `<div style="color: #fff; margin-top: 3rem; font-weight: bold;">第${rank + 1}位にランクイン！</div>`;
+                }
+
+                html += '<div style="margin-top: 4rem; color: #888;">Aボタンでランキングを表示</div>';
+                html += '</div>';
+
+                tombDiv.innerHTML = html;
+            }
         }
     }
 
@@ -261,7 +270,7 @@ export class ScoreManager {
         }
 
         // オリジナルRogueスタイル（シンプル）
-        let html = '<div style="font-family: \'Noto Sans Mono\', monospace; color: #fff; padding: 2rem; line-height: 1.5;">';
+        let html = '<div style="font-size: 1.2rem; font-family: \'Noto Sans Mono\', monospace; color: #fff; padding: 2rem; line-height: 1.5;">';
 
         // タイトル（3行目、中央）
         html += '<div style="text-align: center; margin-bottom: 2rem;">Top Ten Rogueists</div>';
@@ -292,7 +301,7 @@ export class ScoreManager {
         }
 
         html += '</div>';
-        html += '<div style="text-align: center; margin-top: 2rem; color: #888;">Enterキーでタイトルに戻る</div>';
+        html += '<div style="text-align: center; margin-top: 2rem; color: #888;">Aボタンでタイトルに戻る</div>';
 
         rankingScreen.innerHTML = html;
         display.showScreen('ranking');
