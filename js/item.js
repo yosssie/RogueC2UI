@@ -396,8 +396,9 @@ export class Item {
             case 'potion_poison':
                 {
                     // use.c POISON
+                    // 力維持の指輪があってもメッセージは出る
                     if (game.ringManager && game.ringManager.hasSustainStrength()) {
-                        return Mesg[230];
+                        return Mesg[238];
                     }
                     const loss = Math.floor(Math.random() * 3) + 1;
                     player.str = Math.max(1, player.str - loss);
@@ -435,17 +436,18 @@ export class Item {
                 game.updateDisplay();
                 return 'アイテムの気配を感じる。';
             case 'potion_confusion':
-                status.confused += Math.floor(Math.random() * 10) + 12;
+                // オリジナル: 12-22ターン
+                status.confused += Math.floor(Math.random() * 11) + 12;
                 return Mesg[240];
             case 'potion_levitation':
                 // use.c LEVITATION: 15-30ターン
-                status.levitate += Math.floor(Math.random() * 15) + 15;
+                status.levitate += Math.floor(Math.random() * 16) + 15;
                 // 金縛りと罠から解放 (use.c line 137)
                 status.held = false;
                 return Mesg[242];
             case 'potion_haste_self':
                 // use.c HASTE_SELF: 11-21ターン、奇数にする
-                let hasteTurns = Math.floor(Math.random() * 10) + 11;
+                let hasteTurns = Math.floor(Math.random() * 11) + 11;
                 if (hasteTurns % 2 === 0) {
                     hasteTurns++;
                 }
@@ -453,16 +455,18 @@ export class Item {
                 return Mesg[243];
             case 'potion_see_invisible':
                 // use.c SEE_INVISIBLE
-                status.seeInvisible = Math.floor(Math.random() * 300) + 250;
+                // 効果は永続（階層移動で切れる）
+                status.seeInvisible = true;
 
-                // 盲目も治す (use.c line 268-270)
+                // 盲目も治す
                 if (status.blind > 0) {
                     status.blind = 0;
                     game.display.showMessage(Mesg[273]);
                 }
 
-                game.updateDisplay();
-                return '目がちかちかする。';
+                // メッセージは「このポーションは%sジュースのような味がする。」
+                // フルーツ名は本来プレイヤー設定だが、今は「こけもも」固定
+                return Mesg[244].replace('%s', Mesg[333]);
             default:
                 return Mesg[230];
         }
