@@ -2,6 +2,8 @@
 // 罠システム (trap.c 完全移植)
 // ===========================
 
+import { Mesg } from './mesg_J.js';
+
 // 罠の種類定義 (rogue.h)
 export const TrapType = {
     NO_TRAP: -1,
@@ -96,7 +98,7 @@ export class TrapManager {
         // 経験値による回避判定 (ring_exp は指輪効果、未実装なので0)
         const ringExp = 0; // TODO: 指輪実装後に追加
         if (Math.random() * 100 < (this.game.player.level + ringExp)) {
-            this.game.display.showMessage('罠を回避した！');
+            this.game.display.showMessage(Mesg[228]);
             return;
         }
 
@@ -126,28 +128,28 @@ export class TrapManager {
     // 落とし穴
     triggerTrapDoor() {
         this.trapDoorActive = true;
-        this.game.display.showMessage('床が崩れ落ちた！');
+        this.game.display.showMessage(Mesg[217]);
         // 次の階層へ強制移動（Game.jsで処理）
         this.game.descendStairs(true); // 強制フラグ付き
     }
 
     // 熊の罠
     triggerBearTrap() {
-        this.game.display.showMessage('熊の罠にかかった！');
+        this.game.display.showMessage(Mesg[219]);
         // 4-7ターン拘束
         this.bearTrapTurns = 4 + Math.floor(Math.random() * 4);
     }
 
     // テレポート罠
     triggerTeleTrap() {
-        this.game.display.showMessage('テレポートした！');
+        this.game.display.showMessage(Mesg[221]);
         // ランダムな位置にテレポート
         this.teleportPlayer();
     }
 
     // 毒ダーツ罠
     triggerDartTrap() {
-        this.game.display.showMessage('毒ダーツが飛んできた！');
+        this.game.display.showMessage(Mesg[223]);
 
         // 1d6ダメージ
         const damage = 1 + Math.floor(Math.random() * 6);
@@ -168,7 +170,7 @@ export class TrapManager {
 
     // 睡眠ガス罠
     triggerSleepingGasTrap() {
-        this.game.display.showMessage('睡眠ガスが噴き出した！');
+        this.game.display.showMessage(Mesg[225]);
         // take_a_nap() - プレイヤーが数ターン行動不能
         // TODO: 状態異常システム実装後に追加
         this.game.display.showMessage('眠ってしまった...');
@@ -183,7 +185,7 @@ export class TrapManager {
 
     // 錆び罠
     triggerRustTrap() {
-        this.game.display.showMessage('酸が降りかかった！');
+        this.game.display.showMessage(Mesg[227]);
         // rust() - 装備している防具を錆びさせる
         if (this.game.player.equippedArmor) {
             // TODO: アイテムのエンチャント値実装後に追加
@@ -311,10 +313,10 @@ export class TrapManager {
         if (this.bearTrapTurns > 0) {
             this.bearTrapTurns--;
             if (this.bearTrapTurns > 0) {
-                this.game.display.showMessage('罠から抜け出せない！');
+                this.game.display.showMessage(Mesg[68]);
                 return true;
             } else {
-                this.game.display.showMessage('罠から抜け出した。');
+                this.game.display.showMessage(Mesg[66]);
                 return false;
             }
         }

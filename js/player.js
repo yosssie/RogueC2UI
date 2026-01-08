@@ -2,6 +2,8 @@
 // プレイヤー
 // ===========================
 
+import { Mesg } from './mesg_J.js';
+
 export class Player {
     constructor(name, hp, str) {
         this.name = name;
@@ -119,13 +121,13 @@ export class Player {
         if (this.hunger <= 0) {
             // 餓死ダメージ
             this.takeDamage(1);
-            return '空腹で死にそうだ！';
+            return Mesg[76];
         } else if (this.hunger <= 20) {
-            if (Math.random() < 0.2) return '空腹で目が回る...'; // 気絶判定の代わり
+            if (Math.random() < 0.2) return Mesg[77]; // 気絶判定の代わり
         } else if (this.hunger === 150) {
-            return 'お腹が空いて力がでない...';
+            return Mesg[74];
         } else if (this.hunger === 300) {
-            return 'お腹が空いてきた。';
+            return Mesg[72];
         }
         return null;
     }

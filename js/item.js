@@ -2,6 +2,8 @@
 // アイテムデータと処理
 // ===========================
 
+import { Mesg } from './mesg_J.js';
+
 export class Item {
     // 静的データ: ゲーム開始時に初期化（シャッフル）される
     static initialized = false;
@@ -355,18 +357,18 @@ export class Item {
             case 'potion_heal':
                 // use.c potion_heal(0) - 回復薬
                 this.potionHeal(player, game, false);
-                return '体力が回復した。';
+                return Mesg[236];
             case 'potion_extra_heal':
                 // use.c potion_heal(1) - 大回復薬
                 this.potionHeal(player, game, true);
-                return '体力が大きく回復した。';
+                return Mesg[237];
             case 'potion_gain_str':
                 // use.c INCREASE_STRENGTH: str++
                 player.str++;
                 if (player.str > player.maxStr) {
                     player.maxStr = player.str;
                 }
-                return '筋肉がもりもりしてきた！';
+                return Mesg[234];
             case 'potion_restore_str':
                 if (player.str < player.maxStr) {
                     player.str = player.maxStr;
@@ -374,12 +376,12 @@ export class Item {
                     player.maxStr++;
                     player.str = player.maxStr;
                 }
-                return 'これはうまい！';
+                return Mesg[235];
             case 'potion_poison':
                 {
                     // use.c POISON
                     if (game.ringManager && game.ringManager.hasSustainStrength()) {
-                        return '薬を飲んだが、何事も起きなかった。';
+                        return Mesg[230];
                     }
                     const loss = Math.floor(Math.random() * 3) + 1;
                     player.str = Math.max(1, player.str - loss);
@@ -387,10 +389,10 @@ export class Item {
                     // 幻覚も治す (use.c line 99-101)
                     if (status.hallucinating > 0) {
                         status.hallucinating = 0;
-                        game.display.showMessage('周りのものがはっきり見えるようになった。');
+                        game.display.showMessage(Mesg[272]);
                     }
 
-                    return '毒が回った！';
+                    return Mesg[238];
                 }
             case 'potion_raise_level':
                 player.level++;
@@ -404,11 +406,11 @@ export class Item {
             case 'potion_blindness':
                 // use.c BLINDNESS: 500-800ターン
                 status.blind += Math.floor(Math.random() * 300) + 500;
-                return '目の前が暗くなった！';
+                return Mesg[274];
             case 'potion_hallucination':
                 // use.c HALLUCINATION: 500-800ターン
                 status.hallucinating += Math.floor(Math.random() * 300) + 500;
-                return '何だかサイケデリックな気分だ！';
+                return Mesg[239];
             case 'potion_detect_monster':
                 status.detectMonster = Math.floor(Math.random() * 300) + 250;
                 return '怪物の気配を感じる。';
@@ -418,13 +420,13 @@ export class Item {
                 return 'アイテムの気配を感じる。';
             case 'potion_confusion':
                 status.confused += Math.floor(Math.random() * 10) + 12;
-                return '頭がくらくらする...';
+                return Mesg[240];
             case 'potion_levitation':
                 // use.c LEVITATION: 15-30ターン
                 status.levitate += Math.floor(Math.random() * 15) + 15;
                 // 金縛りと罠から解放 (use.c line 137)
                 status.held = false;
-                return '体が軽くなった！';
+                return Mesg[242];
             case 'potion_haste_self':
                 // use.c HASTE_SELF: 11-21ターン、奇数にする
                 let hasteTurns = Math.floor(Math.random() * 10) + 11;
@@ -432,7 +434,7 @@ export class Item {
                     hasteTurns++;
                 }
                 status.fast += hasteTurns;
-                return '動きが速くなった気がする！';
+                return Mesg[243];
             case 'potion_see_invisible':
                 // use.c SEE_INVISIBLE
                 status.seeInvisible = Math.floor(Math.random() * 300) + 250;
@@ -440,13 +442,13 @@ export class Item {
                 // 盲目も治す (use.c line 268-270)
                 if (status.blind > 0) {
                     status.blind = 0;
-                    game.display.showMessage('目が見えるようになった。');
+                    game.display.showMessage(Mesg[273]);
                 }
 
                 game.updateDisplay();
                 return '目がちかちかする。';
             default:
-                return '変な味がした。';
+                return Mesg[230];
         }
     }
 
@@ -510,7 +512,7 @@ export class Item {
                 if (game) {
                     game.player.inventory.forEach(i => i.identified = true);
                 }
-                return '持ち物が全て識別された気がする。';
+                return Mesg[253];
             case 'scroll_teleportation':
                 if (game && game.level) {
                     game.trapManager.teleportPlayer();
@@ -529,22 +531,22 @@ export class Item {
                     // 命中かダメージのどちらかを強化
                     if (Math.random() < 0.5) player.weapon.hitBonus++;
                     else player.weapon.damageBonus++;
-                    return '武器が輝きだした。';
+                    return Mesg[249].replace('%s', player.weapon.name).replace('%s', '');
                 }
-                return '武器を持っていなかった。';
+                return Mesg[250];
             case 'scroll_enchant_armor':
                 if (player.equippedArmor) {
                     player.equippedArmor.value++;
                     player.updateStats(); // AC更新
-                    return '防具が輝きだした。';
+                    return Mesg[251].replace('%s', '');
                 }
-                return '防具を装備していなかった。';
+                return Mesg[252];
             case 'scroll_protect_armor':
                 if (player.equippedArmor) {
                     player.equippedArmor.protected = true;
-                    return '防具が金色のオーラに包まれた。';
+                    return Mesg[255];
                 }
-                return '防具を装備していなかった。';
+                return Mesg[256];
             case 'scroll_remove_curse':
                 let cured = false;
                 player.inventory.forEach(i => {
@@ -558,12 +560,12 @@ export class Item {
                 if (player.leftRing) player.leftRing.cursed = false;
                 if (player.rightRing) player.rightRing.cursed = false;
 
-                return cured ? 'のろいが解けた気がする。' : '誰かに見守られている気がする。';
+                return cured ? Mesg[257] : Mesg[257];
             case 'scroll_sleep':
                 player.status.sleep += Math.floor(Math.random() * 4) + 4;
-                return 'あなたは眠ってしまった。';
+                return Mesg[254];
             case 'scroll_scare_monster':
-                return 'あなたはマニアックな笑い声をあげた！';
+                return Mesg[248];
             case 'scroll_aggravate_monster':
                 // monster.c aggravate() (line 738-753)
                 game.monsters.forEach(m => {
@@ -578,13 +580,13 @@ export class Item {
                 });
                 // 画面更新
                 game.updateDisplay();
-                return '低い唸り声が響き渡った。';
+                return Mesg[65];
             case 'scroll_magic_mapping':
                 // マップ全開放
                 if (game && game.level) {
                     game.level.revealAll();
                     game.updateDisplay();
-                    return '頭の中に地図が浮かび上がった！';
+                    return Mesg[259];
                 }
                 return '何も起こらなかった。';
             case 'scroll_hold_monster':
@@ -614,11 +616,11 @@ export class Item {
 
                     // メッセージをモンスター数に応じて変更
                     if (mcount === 0) {
-                        return '奇妙な喪失感を感じた。';
+                        return Mesg[269];
                     } else if (mcount === 1) {
-                        return 'モンスターが凍りついた。';
+                        return Mesg[270];
                     } else {
-                        return '周囲のモンスターが凍りついた。';
+                        return Mesg[271];
                     }
                 }
             default:
@@ -641,7 +643,7 @@ export class Item {
         else if (this.type === 'food') {
             // 空腹度を回復（増やす）。最大値は1300
             player.hunger = Math.min(1300, player.hunger + this.value);
-            return '食料を食べた。満腹になった！';
+            return Mesg[266];
         }
         return 'それは使えない。';
     }

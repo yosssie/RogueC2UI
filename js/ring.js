@@ -2,6 +2,8 @@
 // 指輪システム (ring.c 完全移植)
 // ===========================
 
+import { Mesg } from './mesg_J.js';
+
 // 指輪の種類定義 (rogue.h)
 export const RingType = {
     STEALTH: 0,           // 隠密
@@ -58,7 +60,7 @@ export class RingManager {
 
         // 既に装備している場合
         if (ring.equipped) {
-            this.game.display.showMessage('既に装備している。');
+            this.game.display.showMessage(Mesg[164]);
             return false;
         }
 
@@ -67,17 +69,17 @@ export class RingManager {
         if (currentRing) {
             // 呪われた指輪は外せない
             if (currentRing.cursed) {
-                this.game.display.showMessage('呪われた指輪が外れない！');
+                this.game.display.showMessage(Mesg[85]);
                 return false;
             }
             // 古い指輪を外す
             this.removeRing(hand);
-            this.game.display.showMessage(`${currentRing.name}を外した。`);
+            this.game.display.showMessage(currentRing.name + Mesg[166]);
         }
 
         // 呪われた指輪は外せない警告
         if (ring.cursed) {
-            this.game.display.showMessage('指輪を装備した... 外せない！');
+            this.game.display.showMessage(Mesg[85]);
         }
 
         // 装備実行
@@ -109,20 +111,20 @@ export class RingManager {
         const ring = hand === 'left' ? player.leftRing : player.rightRing;
 
         if (!ring) {
-            this.game.display.showMessage('その手には指輪をしていない。');
+            this.game.display.showMessage(Mesg[159]);
             return false;
         }
 
         // 呪われた指輪は外せない
         if (ring.cursed) {
-            this.game.display.showMessage('指輪が外れない！呪われている！');
+            this.game.display.showMessage(Mesg[85]);
             return false;
         }
 
         this.unPutOn(ring);
 
         const handName = hand === 'left' ? '左手' : '右手';
-        this.game.display.showMessage(`${handName}の${ring.name}を外した。`);
+        this.game.display.showMessage(`${handName}の${ring.name}` + Mesg[166]);
         return true;
     }
 
@@ -250,7 +252,7 @@ export class RingManager {
         const player = this.game.player;
 
         if (this.rRings === 0) {
-            this.game.display.showMessage('指輪を装備していない。');
+            this.game.display.showMessage(Mesg[167]);
             return;
         }
 

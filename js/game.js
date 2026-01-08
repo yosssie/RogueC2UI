@@ -15,6 +15,7 @@ import { ScoreManager } from './score.js';
 import { TrapManager } from './trap.js';
 import { RingManager } from './ring.js';
 import { WandManager } from './wand.js';
+import { Mesg } from './mesg_J.js';
 
 // デバッグモードはタイトル画面で選択
 
@@ -501,7 +502,7 @@ class Game {
                     return true; // ターン消費
                 }
                 if (this.player.held) {
-                    this.display.showMessage('締め上げられていて動けない！');
+                    this.display.showMessage(Mesg[67]);
                     return true; // ターン消費
                 }
             }
@@ -527,11 +528,11 @@ class Game {
                 // 浮遊チェックがあればここでスキップ
                 if (this.player.addItem(item)) {
                     this.items = this.items.filter(i => i !== item);
-                    this.display.showMessage(`${item.getDisplayName()}を拾った。`);
+                    this.display.showMessage(item.getDisplayName() + Mesg[69]);
                     // Rogue仕様: アイテムを拾ったらダッシュ停止 (STOPPED_ON_SOMETHING)
                     // これはdashPlayerのnextToSomethingで検知される
                 } else {
-                    this.display.showMessage('持ちものがいっぱいだ。');
+                    this.display.showMessage(Mesg[87]);
                 }
             }
         }
@@ -1060,7 +1061,7 @@ class Game {
         }
 
         // 配置できなかった (monster.c line 614)
-        this.display.showMessage('遠くで苦悶の叫び声が聞こえた。');
+        this.display.showMessage(Mesg[64]);
         return false;
     }
 
@@ -1157,10 +1158,10 @@ class Game {
         if (item) {
             if (this.player.addItem(item)) {
                 this.items = this.items.filter(i => i !== item);
-                this.display.showMessage(`${item.getDisplayName()}を拾った。`);
+                this.display.showMessage(item.getDisplayName() + Mesg[69]);
                 return true;
             } else {
-                this.display.showMessage('持ちものがいっぱいだ。');
+                this.display.showMessage(Mesg[87]);
                 return false;
             }
         } else {
@@ -1414,7 +1415,8 @@ class Game {
             case 'equip':
                 this.closeSubMenu();
                 this.player.equip(item);
-                this.display.showMessage(`${item.getDisplayName()}を装備した。`);
+                const equipMsg = item.type === 'weapon' ? Mesg[107] : Mesg[100];
+                this.display.showMessage(item.getDisplayName() + equipMsg);
                 // 装備状態が変わったので再描画
                 this.display.updateInventory(this.player.inventory, this.player);
                 this.processTurn();
@@ -1422,7 +1424,8 @@ class Game {
             case 'unequip':
                 this.closeSubMenu();
                 this.player.unequip(item);
-                this.display.showMessage(`${item.getDisplayName()}を外した。`);
+                const unequipMsg = item.type === 'armor' ? Mesg[94] : Mesg[166];
+                this.display.showMessage(item.getDisplayName() + unequipMsg);
                 this.display.updateInventory(this.player.inventory, this.player);
                 this.processTurn();
                 break;
@@ -1724,7 +1727,7 @@ class Game {
                 itemLost = true; // 命中したらアイテムは消滅 (Rogue仕様)
             } else {
                 // 外れたらアイテムはモンスターの足元(cx,cy)に落ちる
-                this.display.showMessage('はずれた。');
+                this.display.showMessage(Mesg[213]);
             }
         }
 
@@ -1781,7 +1784,7 @@ class Game {
         // 3. 判定
         if (Math.random() * 100 < hitChance) {
             // 命中
-            this.display.showMessage(`${monster.name}に当たった！`);
+            this.display.showMessage(monster.name + Mesg[214]);
 
             // 拡張版: 杖の投擲効果（75%で発動）
             if (item.type === 'wand' && Math.random() < 0.75) {
@@ -1797,7 +1800,7 @@ class Game {
             else {
                 monster.takeDamage(damage);
                 if (monster.isDead()) {
-                    this.display.showMessage(`${monster.name}を倒した!`);
+                    this.display.showMessage(Mesg[24].replace('%s', monster.name));
                     this.monsters = this.monsters.filter(m => m !== monster);
                     this.player.gainExp(monster.exp);
                 }
@@ -2064,11 +2067,11 @@ class Game {
                 // レベルボーナス
                 damage += Math.floor((this.player.level + 1) / 2);
 
-                message = `${defender.name}に攻撃！(${damage}ダメージ)`;
+                message = Mesg[23].replace('%s', defender.name) + `(${damage}ダメージ)`;
                 defender.takeDamage(damage);
 
                 if (defender.isDead()) {
-                    message += ` -> 倒した！(${defender.exp} exp)`;
+                    message += ` -> ` + Mesg[24].replace('%s', defender.name) + `(${defender.exp} exp)`;
                     this.monsters = this.monsters.filter(m => m !== defender);
                     const oldLevel = this.player.level;
                     this.player.gainExp(defender.exp);
@@ -2083,7 +2086,7 @@ class Game {
                     }
                 }
             } else {
-                message = '攻撃ははずれた。';
+                message = Mesg[22].replace('%s', 'あなた');
             }
 
         } else {
@@ -2130,9 +2133,9 @@ class Game {
                 }
 
                 if (isFlame) {
-                    this.display.showMessage(`${attacker.name}の炎があなたを包んだ！(${displayDamage}ダメージ)`);
+                    this.display.showMessage(Mesg[200] + `があなたを包んだ！(${displayDamage}ダメージ)`);
                 } else {
-                    this.display.showMessage(`${attacker.name}の攻撃！(${displayDamage}ダメージ)`);
+                    this.display.showMessage(Mesg[19].replace('%s%s', attacker.name).replace('%s', '') + `(${displayDamage}ダメージ)`);
                 }
 
                 this.player.takeDamage(damage, isFlame); // 炎の場合はアーマー軽減(AC*3%)を無視(既に減算済み)
@@ -2150,9 +2153,9 @@ class Game {
                 }
             } else {
                 if (isFlame) {
-                    message = `${attacker.name}の炎は狙いを外した。`;
+                    message = Mesg[200] + Mesg[213];
                 } else {
-                    message = `${attacker.name}の攻撃をかわした！`;
+                    message = Mesg[18].replace('%s', attacker.name);
                 }
             }
         }

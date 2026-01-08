@@ -1,5 +1,6 @@
 
 import { Monster } from './monster.js';
+import { Mesg } from './mesg_J.js';
 
 export class SpecialHit {
     /**
@@ -62,7 +63,7 @@ export class SpecialHit {
 
         if (!armor.protected) {
             if (armor.value > 0) {
-                game.display.showMessage('鎧が少し錆びた！');
+                game.display.showMessage(Mesg[202]);
                 armor.value--;
                 game.player.updateStats();
             }
@@ -77,7 +78,7 @@ export class SpecialHit {
         // 本来はSTRなどにより変動
         const turns = Math.floor(Math.random() * 2) + 2;
 
-        game.display.showMessage(`${monster.name}に凍らされた！`);
+        game.display.showMessage(Mesg[203]);
 
         // プレイヤーの状態異常を設定
         game.player.status.sleep += turns;
@@ -91,7 +92,7 @@ export class SpecialHit {
 
         // 本来は確率計算があるが簡易的に35%
         if (Math.random() < 0.35) {
-            game.display.showMessage(`${monster.name}の毒針が刺さった！`);
+            game.display.showMessage(Mesg[207].replace('%s', monster.name));
             if (game.player.str > 3) {
                 game.player.str--;
                 game.display.showMessage('力が弱くなった気がする。');
@@ -104,7 +105,7 @@ export class SpecialHit {
 
         if (Math.random() < 0.6) return; // 60%失敗
 
-        game.display.showMessage('生き血を吸われた気がする。');
+        game.display.showMessage(Mesg[208]);
         game.player.maxHp--;
         game.player.hp--;
         if (game.player.hp < 1) game.player.hp = 1;
@@ -139,7 +140,7 @@ export class SpecialHit {
         const stolen = Math.min(game.player.gold, amount);
 
         game.player.gold -= stolen;
-        game.display.showMessage('金貨を盗まれた！');
+        game.display.showMessage(Mesg[204]);
 
         this.disappear(game, monster);
     }
@@ -161,7 +162,7 @@ export class SpecialHit {
         const item = candidates[Math.floor(Math.random() * candidates.length)];
 
         game.player.removeItem(item);
-        game.display.showMessage(`${item.getDisplayName()}を盗まれた！`);
+        game.display.showMessage(item.getDisplayName() + Mesg[205]);
 
         this.disappear(game, monster);
     }
