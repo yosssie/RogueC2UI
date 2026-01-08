@@ -280,38 +280,38 @@ export class Item {
             name = Item.mapping[this.id] || this.realName;
         }
 
-        // 呪われていることがわかっている場合は!を追加
-        let prefix = '';
-        if (this.cursed && this.identified) {
-            prefix = '!';
-        }
-
+        // エンチャント値の表示（識別済みの場合のみ）
         // エンチャント値の表示（識別済みの場合のみ）
         let enchantStr = '';
         if (this.identified) {
-            // スタック可能な武器（矢、投げ矢など）はエンチャント値を表示しない
-            if (this.type === 'weapon' && !this.stackable) {
-                // 武器: （+1，+2）長い剣
-                const hit = this.hitBonus >= 0 ? `+${this.hitBonus}` : `${this.hitBonus}`;
-                const dmg = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
-                enchantStr = `（${hit}，${dmg}）`;
+            if (this.type === 'weapon') {
+                // 武器: (+1, +2) 長い剣
+                // 両方0の場合は表示しない
+                if (this.hitBonus !== 0 || this.damageBonus !== 0) {
+                    const hit = this.hitBonus >= 0 ? `+${this.hitBonus}` : `${this.hitBonus}`;
+                    const dmg = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
+                    enchantStr = ` (${hit}, ${dmg})`;
+                }
             } else if (this.type === 'armor') {
-                // 防具: （+2）鋼鉄のよろい
-                const enc = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
-                enchantStr = `（${enc}）`;
+                // 防具: (+2) 鋼鉄のよろい
+                // 0の場合は表示しない
+                if (this.damageBonus !== 0) {
+                    const enc = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
+                    enchantStr = ` (${enc})`;
+                }
             } else if (this.type === 'ring' && this.enchantment !== undefined && this.enchantment !== 0) {
-                // 指輪: 筋力の指輪（+2）
+                // 指輪: 筋力の指輪 (+2)
                 const enc = this.enchantment >= 0 ? `+${this.enchantment}` : `${this.enchantment}`;
-                enchantStr = `（${enc}）`;
+                enchantStr = ` (${enc})`;
             }
         }
 
         // スタック表示
         if (this.quantity > 1) {
-            return `${prefix}${this.quantity}${this.getUnit()}${enchantStr}${name}`;
+            return `${this.quantity}${this.getUnit()}${name}${enchantStr}`;
         }
 
-        return `${prefix}${enchantStr}${name}`;
+        return `${name}${enchantStr}`;
     }
 
     // ソート用の優先度を取得
@@ -320,11 +320,11 @@ export class Item {
         const typeOrder = {
             'weapon': 10,
             'armor': 20,
+            'ring': 25, // 防具の次
             'food': 30,
             'potion': 40,
             'scroll': 50,
             'wand': 60,
-            'ring': 70,
             'amulet': 80,
             'gold': 90,
             'misc': 99

@@ -291,6 +291,8 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
+    /* 等幅フォントで整形 */
+    font-family: 'Noto Sans Mono', monospace;
 }
 
 #inventory-list li {
@@ -298,6 +300,14 @@ body {
     border-bottom: 1px solid rgba(0, 170, 0, 0.3);
     color: var(--text-color);
     font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+}
+
+.item-status {
+    min-width: 5ch;
+    margin-right: 0.5rem;
+    white-space: pre;
 }
 
 /* 足元アイテム（下寄せ） */

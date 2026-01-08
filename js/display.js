@@ -233,24 +233,32 @@ Mon:${nearbyMonsters}`;
                 }
 
                 let name = item.getDisplayName();
-                if (item._isAtFeet || item._isStairs) {
-                    name += ' (足元)';
+                let statusStr = '';
+
+                let equipStr = '  ';
+                if (player) {
+                    if (player.weapon === item || player.equippedArmor === item) {
+                        equipStr = 'E ';
+                    } else if (player.leftRing === item) {
+                        equipStr = 'EL';
+                    } else if (player.rightRing === item) {
+                        equipStr = 'ER';
+                    }
                 }
+
+                let curseStr = ' ';
+                if (item.cursed && item.identified) {
+                    curseStr = '!';
+                }
+
+                // ステータス文字列構築: "XX Y"形式 (XX:装備, Y:呪い)
+                // 例: "EL !", "E  !", "   !"
+                // !の位置は常に4文字目になる
+                statusStr = `${equipStr} ${curseStr}`;
 
                 // クラス追加 (CSSで下寄せにするため)
                 if (item._isAtFeet || item._isStairs) {
                     li.classList.add('at-feet-item');
-                }
-
-                // 装備マーク (playerが渡された場合)
-                if (player) {
-                    if (player.weapon === item || player.equippedArmor === item) {
-                        name += ' (E)';
-                    } else if (player.leftRing === item) {
-                        name += ' (EL)';
-                    } else if (player.rightRing === item) {
-                        name += ' (ER)';
-                    }
                 }
 
                 // 呪われたアイテムは赤色で表示
@@ -273,7 +281,25 @@ Mon:${nearbyMonsters}`;
                     }
                 }
 
-                li.textContent = `${char}) ${name}`;
+                // 要素構築
+                // ID
+                const idSpan = document.createElement('span');
+                idSpan.textContent = `${char}) `;
+                li.appendChild(idSpan);
+
+                // ステータスエリア (固定幅)
+                const statusSpan = document.createElement('span');
+                statusSpan.classList.add('item-status');
+                // ステータスがない場合でもスペースを確保するために何かしら入れるか、CSSでmin-widthを指定する
+                // ここでは中身を入れる
+                statusSpan.textContent = statusStr;
+                li.appendChild(statusSpan);
+
+                // 名前
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = name;
+                li.appendChild(nameSpan);
+
                 this.inventoryList.appendChild(li);
             });
         }
