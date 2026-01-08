@@ -1655,7 +1655,7 @@ class Game {
         this.pendingAction = null; // リセット
     }
 
-    zapWand(index) {
+    async zapWand(index) {
         const item = this.player.inventory[index];
         const dx = this.targetDirection.x;
         const dy = this.targetDirection.y;
@@ -1673,7 +1673,7 @@ class Game {
         else if (dy === -1 && dx === -1) dir = 7;
 
         if (dir !== -1) {
-            if (this.wandManager.zap(item, dir)) {
+            if (await this.wandManager.zap(item, dir)) {
                 this.processTurn();
             }
         } else {

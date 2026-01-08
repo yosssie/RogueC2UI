@@ -559,4 +559,72 @@ Mon:${nearbyMonsters}`;
         this.renderDungeon(level, player, monsters, items, null, trapManager, debugMode);
     }
 
+    // 魔法の矢エフェクト表示 (Magic Missile)
+    async showMissileEffect(startX, startY, dir, level, player, monsters, items, trapManager, debugMode) {
+        const dirs = [
+            { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
+            { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }
+        ];
+        const d = dirs[dir];
+        const dx = d.x;
+        const dy = d.y;
+
+        // 軌跡を計算 (wand.js getZappedMonster と同等だが壁まで進む)
+        const path = [];
+        let cx = startX + dx;
+        let cy = startY + dy;
+
+        for (let i = 0; i < 20; i++) {
+            // 範囲外チェック
+            if (!level.isInBounds(cx, cy)) break;
+
+            // 壁チェック
+            if (!level.isWalkable(cx, cy)) break;
+
+            path.push({ x: cx, y: cy });
+
+            // モンスターがいるかチェック（当たったらそこで止まる）
+            if (monsters.some(m => m.x === cx && m.y === cy)) {
+                break;
+            }
+
+            cx += dx;
+            cy += dy;
+        }
+
+        if (path.length === 0) return;
+
+        // 一時的に矢を表示するための仮想アイテムを作成
+        const missileItems = path.map(pos => ({
+            x: pos.x,
+            y: pos.y,
+            symbol: '*', // 魔法の矢のシンボル
+            type: 'missile',
+            getDisplayName: () => '魔法の矢'
+        }));
+
+        // ユーザー要望により、ドラゴンの炎と同じく一括表示（高速化）
+        this.renderDungeon(level, player, monsters, [...items, ...missileItems], null, trapManager, debugMode);
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        /* 以前の順次表示ロジック
+        for (let i = 0; i < missileItems.length; i++) {
+            const currentItem = missileItems[i];
+            // 過去の軌跡も残すならこれ
+            // const currentItems = missileItems.slice(0, i + 1);
+            // 弾だけ飛ぶならこれ
+            const currentItems = [currentItem];
+
+            this.renderDungeon(level, player, monsters, [...items, ...currentItems], null, trapManager, debugMode);
+            await new Promise(resolve => setTimeout(resolve, 30)); // 速めに
+        }
+
+        // 最後にもう少し待つ
+        await new Promise(resolve => setTimeout(resolve, 50));
+        */
+
+        // 元の表示に戻す
+        this.renderDungeon(level, player, monsters, items, null, trapManager, debugMode);
+    }
+
 }

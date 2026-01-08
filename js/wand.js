@@ -28,7 +28,7 @@ export class WandManager {
      * @param {Object} wand - 杖アイテム
      * @param {number} dir - 方向 (0-7)
      */
-    zap(wand, dir) {
+    async zap(wand, dir) {
         if (!wand || wand.type !== 'wand') {
             this.game.display.showMessage('それは杖ではない。');
             return false;
@@ -37,6 +37,15 @@ export class WandManager {
         if (wand.charges <= 0) {
             this.game.display.showMessage('杖は使い果たされている。');
             return false;
+        }
+
+        // 魔法の矢のアニメーション
+        if (wand.wandType === this.WAND_TYPES.MAGIC_MISSILE) {
+            await this.game.display.showMissileEffect(
+                this.game.player.x, this.game.player.y, dir,
+                this.game.level, this.game.player, this.game.monsters,
+                this.game.items, this.game.trapManager, this.game.debugMode // debugModeも渡す
+            );
         }
 
         // チャージ消費
@@ -211,12 +220,45 @@ export class WandManager {
 
             case this.WAND_TYPES.CANCELLATION:
                 // 無効化（特殊能力を無効化）
-                // フラグをクリアするが、種族特性はどうする？
-                // Rogueでは invisible, confusion, etc を消す
-                monster.removeFlag(Monster.FLAGS.INVISIBLE);
-                monster.removeFlag(Monster.FLAGS.CONFUSED);
-                monster.removeFlag(Monster.FLAGS.ASLEEP); // ついでに起こすか？
-                // 飛行とかは消える？
+
+                // 締め付け解除 (オリジナル zap.c)
+                if (monster.hasFlag(Monster.FLAGS.HOLDS)) {
+                    // monster.removeFlag(Monster.FLAGS.HOLDS); // フラグ自体も消す
+                    // オリジナルでは HOLDS フラグも消える
+                    if (this.game.player.status.held) {
+                        this.game.player.status.held = false;
+                        this.game.display.showMessage(Mesg[242]); // "動きがとれるようになった。"
+                    }
+                }
+
+                // 削除する特殊能力フラグ (zap.c line 253-255 + α)
+                // INVISIBLE, FLIES, FLITS, SPECIAL_HIT(RUSTS, STINGS etc), 
+                // FLAMES, IMITATES, CONFUSES, SEEKS_GOLD, HOLDS
+                const flagsToRemove = [
+                    Monster.FLAGS.INVISIBLE,
+                    Monster.FLAGS.FLIES,
+                    Monster.FLAGS.FLITS,
+                    Monster.FLAGS.CONFUSES,
+                    Monster.FLAGS.FLAMES,
+                    Monster.FLAGS.IMITATES,
+                    Monster.FLAGS.SEEKS_GOLD,
+                    Monster.FLAGS.HOLDS,      // 締め付け
+                    Monster.FLAGS.STEALS_GOLD,
+                    Monster.FLAGS.STEALS_ITEM, // drop_percent=0 の代わり
+                    Monster.FLAGS.RUSTS,
+                    Monster.FLAGS.STINGS,
+                    Monster.FLAGS.DRAINS_LIFE,
+                    Monster.FLAGS.DROPS_LEVEL,
+                    Monster.FLAGS.FREEZES
+                ];
+
+                flagsToRemove.forEach(f => {
+                    // hasFlag/removeFlagを使う（未定義フラグ対策はクラス側で吸収されていると期待）
+                    if (f !== undefined && monster.hasFlag(f)) {
+                        monster.removeFlag(f);
+                    }
+                });
+
                 this.game.display.showMessage(`${monster.name}の特殊能力が無効化された。`);
                 break;
 
