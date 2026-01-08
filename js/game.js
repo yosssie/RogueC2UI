@@ -90,31 +90,37 @@ class Game {
         this.ringManager.ringStats(false);
 
         // 初期装備 (init.c player_init 準拠)
-        // 食料
+        // 初期装備 (init.c player_init 準拠)
+        // 食料 (1個)
         const food = new Item(':', 0, 0, 'food');
         this.player.addItem(food);
 
-        // リングメイル (AC 3 -> +2 modifier in js definition? No, value is base AC reduction)
-        // Rogue: RingMail(AC7) + 1 -> AC6.
-        // My Item.js: RingMail value=3. If +1, value=4.
-        // Item.js does not support enchantments yet. Using base items for now.
+        // リングメイル +1
         const armor = new Item(']', 0, 0, 'ring_mail');
-        // 簡易エンチャント表現（名前だけ変更とか）は未実装
+        armor.damageBonus = 1; // d_enchant
+        armor.identified = true;
         this.player.addItem(armor);
         this.player.equip(armor);
 
-        // メイス
+        // メイス +1, +1
         const weapon = new Item(')', 0, 0, 'mace');
+        weapon.hitBonus = 1;
+        weapon.damageBonus = 1;
+        weapon.identified = true;
         this.player.addItem(weapon);
         this.player.equip(weapon);
 
-        // 弓
+        // 弓 +1, +0
         const bow = new Item(')', 0, 0, 'bow');
+        bow.hitBonus = 1;
+        bow.damageBonus = 0;
+        bow.identified = true;
         this.player.addItem(bow);
 
-        // 矢 (個数概念がまだないため、とりあえず1スタックとして追加)
+        // 矢 25-35本
         const arrow = new Item(')', 0, 0, 'arrow');
-        // TODO: arrow.count = 25;
+        arrow.quantity = 25 + Math.floor(Math.random() * 11);
+        arrow.identified = true;
         this.player.addItem(arrow);
 
 
@@ -230,8 +236,15 @@ class Game {
 
             const validRooms = this.level.rooms.filter(r => r.is_room & 1);
 
-            for (let i = 0; i < numMonsters; i++) {
+            let spawnedCount = 0;
+            let attempts = 0;
+            // 無限ループ防止のため、最大試行回数を設定 (通常はすぐに配置できるはず)
+            const MAX_ATTEMPTS = 100;
+
+            while (spawnedCount < numMonsters && attempts < MAX_ATTEMPTS) {
+                attempts++;
                 if (validRooms.length === 0) break;
+
                 const room = validRooms[Math.floor(Math.random() * validRooms.length)];
                 const x = room.x + Math.floor(Math.random() * room.w);
                 const y = room.y + Math.floor(Math.random() * room.h);
@@ -239,6 +252,12 @@ class Game {
                 if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                     const type = candidates[Math.floor(Math.random() * candidates.length)];
                     this.monsters.push(new Monster(type, x, y));
+                    spawnedCount++;
+
+                    // オリジナルでは2分の1の確率で起きている状態で生成されることがある
+                    // object.c put_mons: if ((monster->m_flags & WANDERS) && coin_toss()) wake_up(monster);
+                    // 簡易実装として、デフォルトはASLEEPだが、ここで起きる判定を入れても良い
+                    // 現状はMonsterクラスのコンストラクタでASLEEP | WANDERSなどが設定される想定
                 }
             }
         }
@@ -278,31 +297,78 @@ class Game {
             }
         } else {
             // 通常モード
-            const itemCount = 5 + Math.floor(Math.random() * 3); // put_objects: 3-5 or so
-            const validRooms = this.level.rooms.filter(r => r.is_room & 1);
+            // アイテム生成数 (object.c put_objects)
+            // n = coin_toss()? get_rand(2, 4) : get_rand(3, 5);
+            let n = (Math.random() < 0.5) ? (2 + Math.floor(Math.random() * 3)) : (3 + Math.floor(Math.random() * 3));
+            // while (rand_percent(33)) n++;
+            while (Math.random() < 0.33) n++;
 
-            for (let i = 0; i < itemCount; i++) {
+            const validRooms = this.level.rooms.filter(r => r.is_room & 1);
+            let spawnedCount = 0;
+            let attempts = 0;
+            const MAX_ATTEMPTS = 100;
+
+            while (spawnedCount < n && attempts < MAX_ATTEMPTS) {
+                attempts++;
                 if (validRooms.length === 0) break;
+
                 const room = validRooms[Math.floor(Math.random() * validRooms.length)];
                 const x = room.x + Math.floor(Math.random() * room.w);
                 const y = room.y + Math.floor(Math.random() * room.h);
 
                 if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
-                    // object.c gr_what_is: scroll 30%, potion 30%, wand 4%, weapon 10%, armor 9%, food 5%, ring 3%, gold 9%
-                    const rand = Math.random() * 100;
-                    let type = '*';
-                    if (rand < 30) type = '?';          // 巻物 30%
-                    else if (rand < 60) type = '!';     // 薬 30%
-                    else if (rand < 70) type = ')';     // 武器 10%
-                    else if (rand < 79) type = ']';     // 防具 9%
-                    else if (rand < 84) type = ':';     // 食料 5%
-                    else if (rand < 87) type = '=';     // 指輪 3%
-                    // else 金貨 13%
+                    // object.c gr_what_is
+                    // scroll 30, potion 30, wand 4, weapon 10, armor 9, food 5, ring 3
+                    // Total 91
+                    const rand = Math.floor(Math.random() * 91);
+                    let type;
+                    if (rand < 30) type = '?';      // 巻物 30
+                    else if (rand < 60) type = '!'; // 薬 30
+                    else if (rand < 64) type = '/'; // 杖 4
+                    else if (rand < 74) type = ')'; // 武器 10
+                    else if (rand < 83) type = ']'; // 防具 9
+                    else if (rand < 88) type = ':'; // 食料 5
+                    else type = '=';                // 指輪 3 (残り)
 
                     this.items.push(new Item(type, x, y));
+                    spawnedCount++;
                 }
             }
+
+            // 金貨生成 (オリジナルでは別処理)
+            this.spawnGold();
         }
+    }
+
+    // 金貨生成 (object.c put_gold)
+    spawnGold() {
+        // 全ての有効な部屋について判定
+        const rooms = this.level.rooms.filter(r => r.is_room & 1);
+
+        rooms.forEach(room => {
+            // GOLD_PERCENT (46%) の確率で配置
+            // ※迷路(MAZE)の場合は100%だが、現状の実装ではMAZEフラグがないためROOM扱い
+            if (Math.random() < 0.46) {
+                // 配置場所を探す (MAX 50回試行)
+                for (let i = 0; i < 50; i++) {
+                    const x = room.x + Math.floor(Math.random() * room.w);
+                    const y = room.y + Math.floor(Math.random() * room.h);
+
+                    if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
+                        const gold = new Item('*', x, y);
+
+                        // 額を階層依存にする
+                        // amount = get_rand((2 * cur_level), (16 * cur_level))
+                        const min = 2 * this.currentFloor;
+                        const max = 16 * this.currentFloor;
+                        gold.value = min + Math.floor(Math.random() * (max - min + 1));
+
+                        this.items.push(gold);
+                        break; // 1部屋に1個まで
+                    }
+                }
+            }
+        });
     }
 
     isPositionOccupied(x, y) {
