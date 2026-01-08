@@ -157,7 +157,16 @@ export class Monster {
         const rdif = player.y - this.y;
         const cdif = player.x - this.x;
 
-        return (rdif >= -1 && rdif <= 1 && cdif >= -1 && cdif <= 1);
+        if (rdif >= -1 && rdif <= 1 && cdif >= -1 && cdif <= 1) {
+            return true;
+        }
+
+        // 直線視界が通る場合（通路での追跡用）
+        if (level.isLineOfSight && level.isLineOfSight(this.x, this.y, player.x, player.y)) {
+            return true;
+        }
+
+        return false;
     }
 
     act(player, level, monsters = []) {
@@ -235,22 +244,47 @@ export class Monster {
             [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
         }
 
+        // 直進方向を優先する（可能な場合）
+        // lastX, lastY は「移動元の座標」。
+        // つまり、(lastX, lastY) -> (x, y) という移動をした。
+        // 同じベクトル (x - lastX, y - lastY) で進むのが「直進」。
+        if (this.lastX !== null) {
+            const dx = this.x - this.lastX;
+            const dy = this.y - this.lastY;
+            // dirsの中で (dx, dy) と一致するものがあれば先頭に持ってくる
+            const idx = dirs.findIndex(d => d.x === dx && d.y === dy);
+            if (idx > 0) {
+                // 見つかったら先頭と入れ替え（または削除して先頭挿入）
+                const forward = dirs.splice(idx, 1)[0];
+                dirs.unshift(forward);
+            }
+        }
+
+        let backDir = null;
+
         for (let d of dirs) {
             const nx = this.x + d.x;
             const ny = this.y + d.y;
 
-            // 直前の位置には戻らない
-            if (this.lastX !== null && nx === this.lastX && ny === this.lastY) {
-                continue;
-            }
-
             const nextTile = level.getTile(nx, ny);
             // 壁('-', '|') や 空白(' ') 以外なら進める（通路、ドア、床、階段、罠など）
             if (nextTile !== ' ' && nextTile !== '-' && nextTile !== '|') {
+                // 直前の位置には戻らない（優先度低）
+                if (this.lastX !== null && nx === this.lastX && ny === this.lastY) {
+                    backDir = { x: nx, y: ny };
+                    continue;
+                }
+
                 this.tcol = nx;
                 this.trow = ny;
                 return;
             }
+        }
+
+        // 他に行ける場所がなく、戻れるなら戻る（行き止まりからの脱出）
+        if (backDir) {
+            this.tcol = backDir.x;
+            this.trow = backDir.y;
         }
     }
 
