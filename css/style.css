@@ -152,8 +152,8 @@ body {
     border: none;
     padding: 0;
     margin-bottom: 0.5rem;
-    height: 5rem;
-    /* 4行分 (1.2 line-height * 4 = 4.8) */
+    height: 6rem;
+    /* 余裕を持たせる */
     overflow: hidden;
     display: flex;
     flex-direction: column;

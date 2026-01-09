@@ -99,9 +99,21 @@ export class DebugLevel extends Level {
                 }
             }
         }
-        // Level.jsと同じ形式でroomsに追加（is_room追加）
+        // Level.jsと同じ形式でroomsに追加（オリジナルRogue準拠のプロパティ）
         const R_ROOM = 1;
-        this.rooms.push({ x, y, w: width, h: height, is_room: R_ROOM, id });
+        this.rooms.push({
+            x,
+            y,
+            w: width,
+            h: height,
+            is_room: R_ROOM,
+            id,
+            // オリジナルRogue準拠のプロパティ
+            left_col: x + 1,
+            right_col: x + width - 2,
+            top_row: y + 1,
+            bottom_row: y + height - 2
+        });
     }
 
     drawPassage(x1, y1, x2, y2) {
@@ -130,5 +142,44 @@ export class DebugLevel extends Level {
     // placeStairs (デバッグモードでは generate で配置済み)
     placeStairs() {
         // 既に generate() で配置済みなので何もしない
+    }
+
+    // デバッグモード用: 座標から部屋を取得
+    getRoomAt(x, y) {
+        for (const room of this.rooms) {
+            if (x >= room.x && x < room.x + room.w &&
+                y >= room.y && y < room.y + room.h) {
+                return room;
+            }
+        }
+        return null;
+    }
+
+    // デバッグモード用: 部屋ベースの視界処理
+    updateVisibility(playerX, playerY) {
+        // プレイヤーがいる部屋を探す
+        const currentRoom = this.getRoomAt(playerX, playerY);
+
+        if (currentRoom) {
+            // 部屋全体を見えるようにする
+            for (let y = currentRoom.y; y < currentRoom.y + currentRoom.h; y++) {
+                for (let x = currentRoom.x; x < currentRoom.x + currentRoom.w; x++) {
+                    if (y >= 0 && y < this.height && x >= 0 && x < this.width) {
+                        this.visited[y][x] = true;
+                    }
+                }
+            }
+        }
+
+        // プレイヤー周囲1マスも見えるようにする（通路用）
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const nx = playerX + dx;
+                const ny = playerY + dy;
+                if (ny >= 0 && ny < this.height && nx >= 0 && nx < this.width) {
+                    this.visited[ny][nx] = true;
+                }
+            }
+        }
     }
 }

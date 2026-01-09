@@ -73,6 +73,8 @@ export class InputManager {
             this.handleVictoryInput(e);
         } else if (this.game.state === 'selling') {
             this.handleSellingInput(e);
+        } else if (this.game.state === 'identify') {
+            this.handleIdentifyInput(e);
         }
     }
 
@@ -245,6 +247,25 @@ export class InputManager {
         // ソート (Yボタン)
         else if (e.code === this.keyConfig.buttonY) {
             this.game.sortInventory();
+        }
+    }
+
+    handleIdentifyInput(e) {
+        e.preventDefault();
+
+        if (e.code === this.keyConfig.buttonB || e.key === 'Escape') {
+            this.game.cancelIdentify();
+            return;
+        }
+
+        if (e.key === 'ArrowUp' || e.code === 'Numpad8') {
+            this.game.moveIdentifyCursor(-1);
+        } else if (e.key === 'ArrowDown' || e.code === 'Numpad2') {
+            this.game.moveIdentifyCursor(1);
+        }
+
+        else if (e.code === this.keyConfig.buttonA || e.key === 'Enter') {
+            this.game.confirmIdentifyItem();
         }
     }
 

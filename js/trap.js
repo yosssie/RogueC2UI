@@ -208,8 +208,10 @@ export class TrapManager {
         // ランダムな歩ける場所を探す
         do {
             const room = level.rooms[Math.floor(Math.random() * level.rooms.length)];
-            newX = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
-            newY = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+            const roomWidth = room.right_col - room.left_col + 1;
+            const roomHeight = room.bottom_row - room.top_row + 1;
+            newX = room.left_col + 1 + Math.floor(Math.random() * (roomWidth - 2));
+            newY = room.top_row + 1 + Math.floor(Math.random() * (roomHeight - 2));
             attempts++;
         } while (!level.isWalkable(newX, newY) && attempts < 100);
 
@@ -248,13 +250,16 @@ export class TrapManager {
             // ランダムな床タイルを選ぶ
             let row, col;
             let attempts = 0;
-            const validRooms = level.rooms.filter(r => r.is_room & 1); // R_ROOM
+            // R_ROOM | R_MAZE (0x02 | 0x04 = 0x06)
+            const validRooms = level.rooms.filter(r => r.is_room & 0x06);
 
             do {
                 if (validRooms.length === 0) break;
                 const room = validRooms[Math.floor(Math.random() * validRooms.length)];
-                row = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
-                col = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+                const roomWidth = room.right_col - room.left_col + 1;
+                const roomHeight = room.bottom_row - room.top_row + 1;
+                row = room.top_row + 1 + Math.floor(Math.random() * (roomHeight - 2));
+                col = room.left_col + 1 + Math.floor(Math.random() * (roomWidth - 2));
                 attempts++;
             } while (
                 (!level.isWalkable(row, col) ||

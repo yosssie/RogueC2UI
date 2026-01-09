@@ -194,8 +194,8 @@ export class Game {
 
         // プレイヤーを配置
         // プレイヤーを配置
-        // 有効な部屋を探す
-        let validRooms = this.level.rooms.filter(r => r.is_room & 1); // R_ROOM = 1
+        // 有効な部屋を探す (R_ROOM = 0x02)
+        let validRooms = this.level.rooms.filter(r => r.is_room & 0x02);
         if (validRooms.length === 0) {
             // 万が一部屋がない場合は強制的に中央付近に通路を作るなどが必要だが、
             // 生成ロジック上必ず1つはあるはず。
@@ -205,8 +205,11 @@ export class Game {
         }
 
         const startRoom = validRooms[0]; // ランダムにするなら Math.random()
-        this.player.x = startRoom.x + Math.floor(startRoom.w / 2); // 部屋の中央
-        this.player.y = startRoom.y + Math.floor(startRoom.h / 2);
+        // 部屋の中央に配置 (オリジナルRogue準拠の座標系)
+        const roomWidth = startRoom.right_col - startRoom.left_col + 1;
+        const roomHeight = startRoom.bottom_row - startRoom.top_row + 1;
+        this.player.x = startRoom.left_col + Math.floor(roomWidth / 2);
+        this.player.y = startRoom.top_row + Math.floor(roomHeight / 2);
 
         // 初期視界を設定
         this.level.updateVisibility(this.player.x, this.player.y);
@@ -276,7 +279,8 @@ export class Game {
             // 候補がなければ（深い階層とか未定義とか）、適当に強いやつを混ぜるか、強制的にコウモリ
             if (candidates.length === 0) candidates.push('B');
 
-            const validRooms = this.level.rooms.filter(r => r.is_room & 1);
+            // R_ROOM | R_MAZE (0x02 | 0x04 = 0x06)
+            const validRooms = this.level.rooms.filter(r => r.is_room & 0x06);
 
             let spawnedCount = 0;
             let attempts = 0;
@@ -288,8 +292,10 @@ export class Game {
                 if (validRooms.length === 0) break;
 
                 const room = validRooms[Math.floor(Math.random() * validRooms.length)];
-                const x = room.x + Math.floor(Math.random() * room.w);
-                const y = room.y + Math.floor(Math.random() * room.h);
+                const roomWidth = room.right_col - room.left_col + 1;
+                const roomHeight = room.bottom_row - room.top_row + 1;
+                const x = room.left_col + Math.floor(Math.random() * roomWidth);
+                const y = room.top_row + Math.floor(Math.random() * roomHeight);
 
                 if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                     const type = candidates[Math.floor(Math.random() * candidates.length)];
@@ -364,7 +370,8 @@ export class Game {
             // while (rand_percent(33)) n++;
             while (Math.random() < 0.33) n++;
 
-            const validRooms = this.level.rooms.filter(r => r.is_room & 1);
+            // R_ROOM | R_MAZE (0x02 | 0x04 = 0x06)
+            const validRooms = this.level.rooms.filter(r => r.is_room & 0x06);
             let spawnedCount = 0;
             let attempts = 0;
             const MAX_ATTEMPTS = 100;
@@ -374,8 +381,10 @@ export class Game {
                 if (validRooms.length === 0) break;
 
                 const room = validRooms[Math.floor(Math.random() * validRooms.length)];
-                const x = room.x + Math.floor(Math.random() * room.w);
-                const y = room.y + Math.floor(Math.random() * room.h);
+                const roomWidth = room.right_col - room.left_col + 1;
+                const roomHeight = room.bottom_row - room.top_row + 1;
+                const x = room.left_col + Math.floor(Math.random() * roomWidth);
+                const y = room.top_row + Math.floor(Math.random() * roomHeight);
 
                 if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                     // object.c gr_what_is
@@ -402,15 +411,18 @@ export class Game {
             // 魔除け (Amulet of Yendor) の生成
             // 26階以降、かつ所持していない場合
             if (this.currentFloor >= 26 && !this.player.inventory.some(i => i.id === 'amulet')) {
-                const validRooms = this.level.rooms.filter(r => r.is_room & 1);
+                // R_ROOM | R_MAZE (0x02 | 0x04 = 0x06)
+                const validRooms = this.level.rooms.filter(r => r.is_room & 0x06);
                 if (validRooms.length > 0) {
                     let placed = false;
                     let attempts = 0;
                     while (!placed && attempts < 100) {
                         attempts++;
                         const room = validRooms[Math.floor(Math.random() * validRooms.length)];
-                        const x = room.x + Math.floor(Math.random() * room.w);
-                        const y = room.y + Math.floor(Math.random() * room.h);
+                        const roomWidth = room.right_col - room.left_col + 1;
+                        const roomHeight = room.bottom_row - room.top_row + 1;
+                        const x = room.left_col + Math.floor(Math.random() * roomWidth);
+                        const y = room.top_row + Math.floor(Math.random() * roomHeight);
 
                         if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                             const amulet = new Item(',', x, y, 'amulet');
@@ -426,16 +438,21 @@ export class Game {
     // 金貨生成 (object.c put_gold)
     spawnGold() {
         // 全ての有効な部屋について判定
-        const rooms = this.level.rooms.filter(r => r.is_room & 1);
+        // R_ROOM | R_MAZE (0x02 | 0x04 = 0x06)
+        const rooms = this.level.rooms.filter(r => r.is_room & 0x06);
 
         rooms.forEach(room => {
-            // GOLD_PERCENT (46%) の確率で配置
-            // ※迷路(MAZE)の場合は100%だが、現状の実装ではMAZEフラグがないためROOM扱い
-            if (Math.random() < 0.46) {
+            // 迷路かどうかチェック (R_MAZE = 0x04)
+            const isMaze = (room.is_room & 0x04) !== 0;
+
+            // GOLD_PERCENT (46%) の確率で配置、迷路は100%
+            if (isMaze || Math.random() < 0.46) {
                 // 配置場所を探す (MAX 50回試行)
                 for (let i = 0; i < 50; i++) {
-                    const x = room.x + Math.floor(Math.random() * room.w);
-                    const y = room.y + Math.floor(Math.random() * room.h);
+                    const roomWidth = room.right_col - room.left_col + 1;
+                    const roomHeight = room.bottom_row - room.top_row + 1;
+                    const x = room.left_col + Math.floor(Math.random() * roomWidth);
+                    const y = room.top_row + Math.floor(Math.random() * roomHeight);
 
                     if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                         const gold = new Item('*', x, y);
@@ -445,6 +462,11 @@ export class Game {
                         const min = 2 * this.currentFloor;
                         const max = 16 * this.currentFloor;
                         gold.value = min + Math.floor(Math.random() * (max - min + 1));
+
+                        // 迷路なら1.5倍 (object.c plant_gold)
+                        if (isMaze) {
+                            gold.value += Math.floor(gold.value / 2);
+                        }
 
                         this.items.push(gold);
                         break; // 1部屋に1個まで
@@ -468,6 +490,10 @@ export class Game {
 
     handlePlayerAction(action) {
         if (this.state !== 'playing') return;
+
+        // プレイヤーの行動開始時に、前のターンのメッセージをアーカイブ(グレーにする)
+        // これにより、今回のターンで発生する一連のメッセージは全て白文字になる
+        this.display.archiveMessages();
 
         let actionTaken = false;
 
@@ -673,8 +699,18 @@ export class Game {
         if (pickup) {
             const item = this.items.find(i => i.x === newX && i.y === newY);
             if (item) {
+                // SCARE_MONSTER特殊処理 (pack.c pick_up line 86-95)
+                if (item.id === 'scroll_scare_monster' && item.picked_up) {
+                    // 一度拾ったSCARE_MONSTERを再度拾おうとすると消滅
+                    this.items = this.items.filter(i => i !== item);
+                    this.display.showMessage(Mesg[86]); // "拾いあげたとたん、巻き物はちりになってしまった。"
+                    return true; // ターン消費
+                }
+
                 // 浮遊チェックがあればここでスキップ
                 if (this.player.addItem(item)) {
+                    // アイテムを拾った時にpicked_upフラグを立てる
+                    item.picked_up = true;
                     this.items = this.items.filter(i => i !== item);
                     this.display.showMessage(item.getDisplayName() + Mesg[69]);
                     // Rogue仕様: アイテムを拾ったらダッシュ停止 (STOPPED_ON_SOMETHING)
@@ -980,7 +1016,16 @@ export class Game {
         if (dx <= 1 && dy <= 1 && (dx !== 0 || dy !== 0)) {
             // 壁越し攻撃防止 (canMoveチェック)
             if (this.level.canMove(monster.x, monster.y, this.player.x, this.player.y)) {
-                canAttack = true;
+                // SCARE_MONSTERチェック (monster.c mon_can_go line 447-452)
+                // プレイヤーがSCARE_MONSTERの上に立っている場合は攻撃できない
+                const scareScroll = this.items.find(item =>
+                    item.x === this.player.x &&
+                    item.y === this.player.y &&
+                    item.id === 'scroll_scare_monster'
+                );
+                if (!scareScroll) {
+                    canAttack = true;
+                }
             }
         }
 
@@ -1009,7 +1054,7 @@ export class Game {
             // 周囲にプレイヤーがいなければ、あるいは特殊行動もしなければ移動
             // プレイヤーが見えているなら追跡、そうでなければ徘徊
             // ... (既存コード) (他のモンスターとの衝突判定を渡す)
-            monster.act(this.player, this.level, this.monsters);
+            monster.act(this.player, this.level, this.monsters, this.items);
         }
     }
 
@@ -1439,6 +1484,77 @@ export class Game {
     }
 
     // ===========================
+    // 識別モード (識別の巻物用)
+    // ===========================
+
+    selectItemToIdentify() {
+        const list = this.player.inventory;
+        if (list.length === 0) {
+            this.display.showMessage('持ち物がない。');
+            return;
+        }
+
+        this.state = 'identify';
+        this.inventoryIndex = 0;
+
+        // 識別モードでインベントリを表示
+        this.display.updateInventory(list, this.player, true, this.inventoryIndex);
+        this.display.updateInventoryCursor(this.inventoryIndex);
+        this.display.showMessage('識別するアイテムを選択してください (A:決定, B:キャンセル)');
+        this.updateDisplay();
+    }
+
+    moveIdentifyCursor(delta) {
+        const list = this.player.inventory;
+        if (list.length === 0) return;
+
+        this.inventoryIndex += delta;
+        if (this.inventoryIndex < 0) this.inventoryIndex = list.length - 1;
+        if (this.inventoryIndex >= list.length) this.inventoryIndex = 0;
+
+        // 識別モードで再描画
+        this.display.updateInventory(list, this.player, true, this.inventoryIndex);
+        this.display.updateInventoryCursor(this.inventoryIndex);
+    }
+
+    confirmIdentifyItem() {
+        const list = this.player.inventory;
+        if (list.length === 0) return;
+
+        const item = list[this.inventoryIndex];
+
+        // アイテムを識別
+        item.identified = true;
+
+        // アイテムの種類に応じて識別情報を更新 (use.c idntfy line 582-585)
+        if (item.type === 'scroll' || item.type === 'potion' ||
+            item.type === 'weapon' || item.type === 'armor' ||
+            item.type === 'wand' || item.type === 'ring') {
+            // Item.definitions の識別状態を更新
+            // (簡易実装: 個別アイテムの識別のみ)
+        }
+
+        // メッセージ表示 (use.c idntfy line 586: mesg[206])
+        const desc = item.getDisplayName();
+        const msg = Mesg[206].replace('%s', desc);
+        this.display.showMessage(msg);
+
+        // 識別モード終了、ゲームに戻る
+        this.state = 'playing';
+        this.updateDisplay();
+
+        // ターン経過
+        this.processTurn();
+    }
+
+    cancelIdentify() {
+        // 識別モード終了、ゲームに戻る (ターン経過なし)
+        this.state = 'playing';
+        this.display.showMessage(''); // メッセージクリア
+        this.updateDisplay();
+    }
+
+    // ===========================
     // サブメニュー操作
     // ===========================
 
@@ -1578,8 +1694,18 @@ export class Game {
                 // アイテム使用処理
                 const success = this.useItem(this.inventoryIndex);
                 if (success) {
-                    this.closeInventory();
-                    this.processTurn();
+                    // 識別の巻物などで識別モードに入った場合は、インベントリを閉じず、ターンも進めない
+                    if (this.state === 'identify') {
+                        // useItemで巻物が消費されてインベントリが変更されているため、
+                        // カーソル位置を調整して再描画が必要。
+                        if (this.identifyIndex >= this.player.inventory.length) {
+                            this.identifyIndex = Math.max(0, this.player.inventory.length - 1);
+                        }
+                        this.display.updateInventory(this.player.inventory, this.player, true, this.identifyIndex);
+                    } else {
+                        this.closeInventory();
+                        this.processTurn();
+                    }
                 }
                 break;
             case 'equip':
@@ -2195,6 +2321,7 @@ export class Game {
         let message = '';
         const isPlayerAttacking = (attacker === this.player);
         const isFlame = options.isFlame || false;
+        let levelUp = false; // レベルアップフラグ
 
         if (isPlayerAttacking) {
             // --- プレイヤーの攻撃 (rogue_hit) ---
@@ -2240,7 +2367,7 @@ export class Game {
                     const oldLevel = this.player.level;
                     this.player.gainExp(defender.exp);
                     if (this.player.level > oldLevel) {
-                        this.display.showMessage(`レベル${this.player.level}に上がった！`);
+                        levelUp = true;
                     }
 
                     // 拘束解除
@@ -2325,6 +2452,10 @@ export class Game {
         }
 
         this.display.showMessage(message);
+
+        if (levelUp) {
+            this.display.showMessage(`レベル ${this.player.level} にようこそ。`);
+        }
     }
 
     parseDice(diceStr) {

@@ -1,65 +1,81 @@
 // ===========================
-// ダンジョン生成 (Original Rogue Level Generation Port)
+// ダンジョン生成 (Original Rogue Level Generation - Complete Port)
 // ===========================
 
+// オリジナルRogueの定数 (rogue.h より)
 const MAXROOMS = 9;
-const MIN_ROW = 1; // メッセージライン用
-// グリッド定数は画面サイズに合わせて動的に計算するが、
-// オリジナルは固定値を持っているのでそれを模倣する。
-// 80x22 の画面を想定
-
-/*
- 部屋IDの配置:
- 0 1 2
- 3 4 5
- 6 7 8
-*/
-
-// 定数
-const R_NOTHING = 0;
-const R_ROOM = 1;
-const R_MAZE = 2;
-const R_DEADEND = 4;
-const R_CROSS = 8;
-
+const BIG_ROOM = 10;
 const NO_ROOM = -1;
+const PASSAGE = -3;
 
+const MIN_ROW = 1;
+const ROGUE_LINES = 24;
+const ROGUE_COLUMNS = 80;
+
+const ROW1 = 7;
+const ROW2 = 15;
+const COL1 = 26;
+const COL2 = 52;
+
+const HIDE_PERCENT = 12;
+
+// 部屋タイプ
+const R_NOTHING = 0x01;
+const R_ROOM = 0x02;
+const R_MAZE = 0x04;
+const R_DEADEND = 0x08;
+const R_CROSS = 0x10;
+
+// ダンジョンタイル
+const NOTHING = 0x0000;
+const HORWALL = 0x0008;  // '-'
+const VERTWALL = 0x0010; // '|'
+const DOOR = 0x0020;     // '+'
+const FLOOR = 0x0040;    // '.'
+const TUNNEL = 0x0080;   // '#'
+const STAIRS = 0x0004;   // '%'
+const HIDDEN = 0x0200;   // 隠しフラグ
+
+// 方向
 const UPWARD = 0;
-const RIGHT = 1;
-const DOWN = 2;
-const LEFT = 3;
+const RIGHT = 2;
+const DOWN = 4;
+const LEFT = 6;
+const DIRS = 8;
+
+// ランダム部屋順序 (オリジナルと同じ初期値)
+let random_rooms = [3, 7, 5, 2, 0, 6, 1, 4, 8];
 
 export class Level {
     constructor(width, height, floor) {
-        this.width = width;
-        this.height = height;
+        this.width = ROGUE_COLUMNS;  // 固定値を使用
+        this.height = ROGUE_LINES;   // 固定値を使用
         this.floor = floor;
         this.tiles = [];
         this.visited = [];
-        this.hiddenObjects = []; // 隠しドア・罠用
-        this.rooms = []; // 部屋データ
+        this.hiddenObjects = []; // 隠しオブジェクト用
+        this.rooms = [];
+        this.dungeon = []; // オリジナルのdungeon配列 (フラグ管理用)
 
-        // グリッド境界 (make_room参照)
-        this.COL1 = Math.floor(width / 3);
-        this.COL2 = 2 * this.COL1;
-        this.ROW1 = Math.floor(height / 3);
-        this.ROW2 = 2 * this.ROW1;
+        // グローバル変数的なもの
+        this.r_de = NO_ROOM;
     }
 
-    // 隠しオブジェクト定数
-    static HIDDEN_DOOR = 1;
-    static TRAP = 2; // (予約)
-
     generate() {
-        // マップ初期化
-        for (let y = 0; y < this.height; y++) {
-            this.tiles[y] = [];
-            this.visited[y] = [];
-            this.hiddenObjects[y] = [];
-            for (let x = 0; x < this.width; x++) {
-                this.tiles[y][x] = ' ';
-                this.visited[y][x] = false;
-                this.hiddenObjects[y][x] = null;
+        this.clear_level();
+        this.make_level();
+    }
+
+    clear_level() {
+        // ダンジョン配列の初期化
+        for (let i = 0; i < ROGUE_LINES; i++) {
+            this.dungeon[i] = [];
+            this.tiles[i] = [];
+            this.visited[i] = [];
+            for (let j = 0; j < ROGUE_COLUMNS; j++) {
+                this.dungeon[i][j] = NOTHING;
+                this.tiles[i][j] = ' ';
+                this.visited[i][j] = false;
             }
         }
 
@@ -67,370 +83,587 @@ export class Level {
         this.rooms = [];
         for (let i = 0; i < MAXROOMS; i++) {
             this.rooms[i] = {
-                id: i,
+                top_row: 0,
+                bottom_row: 0,
+                left_col: 0,
+                right_col: 0,
                 is_room: R_NOTHING,
-                top_row: 0, bottom_row: 0,
-                left_col: 0, right_col: 0,
                 doors: [
-                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 }, // UP
-                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 }, // RIGHT
-                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 }, // DOWN
-                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 }  // LEFT
+                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 },
+                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 },
+                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 },
+                    { oth_room: NO_ROOM, oth_row: 0, oth_col: 0, door_row: 0, door_col: 0 }
                 ],
-                // JS版での便宜用プロパティ (互換性維持)
-                x: 0, y: 0, w: 0, h: 0,
                 visited: false // is_all_connected用
             };
         }
+    }
 
-        // --- make_level (level.c) のロジック ---
+    make_level() {
+        let must_exist1, must_exist2, must_exist3;
+        let big_room = false;
+        let vertical;
 
-        // 最低限存在する部屋を決定
-        let must_exist1 = Math.floor(Math.random() * 3); // 0, 1, 2
-        let must_exist2, must_exist3;
-        const vertical = Math.random() < 0.5;
+        // 必須部屋の決定
+        must_exist1 = this.get_rand(0, 2);
+        vertical = this.coin_toss();
 
         if (vertical) {
-            must_exist2 = must_exist1 + 3;
-            must_exist3 = must_exist2 + 3;
+            must_exist3 = (must_exist2 = must_exist1 + 3) + 3;
         } else {
-            // オリジナルの式を再現
-            must_exist1 *= 3; // 0, 3, 6 に補正
-            must_exist2 = must_exist1 + 1;
-            must_exist3 = must_exist2 + 1;
-        }
-        // 注意: オリジナルの式 (must_exist1 *= 3) + 1 で横並びにするロジックを再現
-        //  vertical: 0->3->6 (縦一列確定)
-        // !vertical: 0->1->2 (横一列確定)
-
-        // 大部屋 (BIG_ROOM) は今回は省略 (実装が複雑になるため)
-
-        // 部屋生成
-        for (let i = 0; i < MAXROOMS; i++) {
-            this.make_room(i, must_exist1, must_exist2, must_exist3);
+            must_exist3 = (must_exist2 = (must_exist1 *= 3) + 1) + 1;
         }
 
-        // ログ出力: 生成された部屋の状態
-        console.log("--- Level Generation ---");
-        for (let i = 0; i < MAXROOMS; i++) {
-            const r = this.rooms[i];
-            const type = (r.is_room & R_ROOM) ? "ROOM" : (r.is_room & R_NOTHING) ? "NOTHING" : "OTHER";
-            console.log(`Room ${i}: ${type}, Pos:(${r.left_col},${r.top_row})-(${r.right_col},${r.bottom_row})`);
-        }
+        // BIG_ROOMは今回は省略 (実装が複雑なため)
+        // big_room = (this.floor == party_counter) && this.rand_percent(1);
 
-        // 接続処理 (mix_random_rooms省略、単純なランダム順で)
-        const random_rooms = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
-
-
-        for (let j = 0; j < MAXROOMS; j++) {
-            const i = random_rooms[j];
-
-            // 基本接続: 右隣(i+1)
-            // 0,1, 3,4, 6,7 のみ右と接続可能 (列の最後 2,5,8 は右がない)
-            if ((i % 3) !== 2) {
-                this.connect_rooms(i, i + 1);
+        if (big_room) {
+            this.make_room(BIG_ROOM, 0, 0, 0);
+        } else {
+            // 全部屋を生成
+            for (let i = 0; i < MAXROOMS; i++) {
+                this.make_room(i, must_exist1, must_exist2, must_exist3);
             }
+        }
 
-            // 基本接続: 下(i+3)
-            // 0,1,2, 3,4,5 のみ下と接続可能 (行の最後 6,7,8 は下がない)
-            if (i < 6) {
-                this.connect_rooms(i, i + 3);
-            }
+        if (!big_room) {
+            // 迷路追加
+            this.add_mazes();
 
-            // 交差接続: i+2 (横2つ飛ばし) => 0-2, 3-5, 6-8
-            // オリジナル通り: 間の部屋(i+1)が無い場合に接続
-            if ((i % 3) === 0) {
-                if (this.rooms[i + 1].is_room & R_NOTHING) {
-                    if (this.connect_rooms(i, i + 2)) {
-                        this.rooms[i + 1].is_room = R_CROSS;
+            // ランダム部屋順序をシャッフル
+            this.mix_random_rooms();
+
+            // 部屋接続
+            for (let j = 0; j < MAXROOMS; j++) {
+                const i = random_rooms[j];
+
+                if (i < MAXROOMS - 1) {
+                    this.connect_rooms(i, i + 1);
+                }
+                if (i < MAXROOMS - 3) {
+                    this.connect_rooms(i, i + 3);
+                }
+                if (i < MAXROOMS - 2) {
+                    if ((this.rooms[i + 1].is_room & R_NOTHING) &&
+                        (i + 1 !== 4 || vertical)) {
+                        if (this.connect_rooms(i, i + 2)) {
+                            this.rooms[i + 1].is_room = R_CROSS;
+                        }
                     }
+                }
+                if (i < MAXROOMS - 6) {
+                    if ((this.rooms[i + 3].is_room & R_NOTHING) &&
+                        (i + 3 !== 4 || !vertical)) {
+                        if (this.connect_rooms(i, i + 6)) {
+                            this.rooms[i + 3].is_room = R_CROSS;
+                        }
+                    }
+                }
+                if (this.is_all_connected()) {
+                    break;
                 }
             }
 
-            // 交差接続: i+6 (縦2つ飛ばし) => 0-6, 1-7, 2-8
-            if (i < 3) {
-                if (this.rooms[i + 3].is_room & R_NOTHING) {
-                    if (this.connect_rooms(i, i + 6)) {
-                        this.rooms[i + 3].is_room = R_CROSS;
-                    }
-                }
+            // 最終チェック
+            if (!this.is_all_connected()) {
+                // 接続されてない部屋をログ出力
             }
 
-            if (this.is_all_connected()) {
-                break;
-            }
+            // 空き部屋を埋める
+            this.fill_out_level();
         }
 
+        // dungeon配列からtiles配列へ変換
+        this.convert_dungeon_to_tiles();
 
-        // 5. 階段配置
+        // 階段配置
         this.placeStairs();
     }
 
     make_room(rn, r1, r2, r3) {
-        // level.c make_room
         let left_col, right_col, top_row, bottom_row;
         let width, height;
         let row_offset, col_offset;
 
-        // グリッド範囲決定
-        switch (rn % 3) {
-            case 0: left_col = 0; right_col = this.COL1 - 1; break;
-            case 1: left_col = this.COL1 + 1; right_col = this.COL2 - 1; break;
-            case 2: left_col = this.COL2 + 1; right_col = this.width - 2; break; // 右端余白
+        if (rn === BIG_ROOM) {
+            top_row = this.get_rand(MIN_ROW, MIN_ROW + 5);
+            bottom_row = this.get_rand(ROGUE_LINES - 7, ROGUE_LINES - 2);
+            left_col = this.get_rand(0, 10);
+            right_col = this.get_rand(ROGUE_COLUMNS - 11, ROGUE_COLUMNS - 2);
+            rn = 0;
+            // goto B相当の処理
+        } else {
+            // グリッド範囲決定
+            switch (rn % 3) {
+                case 0:
+                    left_col = 0;
+                    right_col = COL1 - 1;
+                    break;
+                case 1:
+                    left_col = COL1 + 1;
+                    right_col = COL2 - 1;
+                    break;
+                default:
+                case 2:
+                    left_col = COL2 + 1;
+                    right_col = ROGUE_COLUMNS - 2;
+                    break;
+            }
+            switch (Math.floor(rn / 3)) {
+                case 0:
+                    top_row = MIN_ROW;
+                    bottom_row = ROW1 - 1;
+                    break;
+                case 1:
+                    top_row = ROW1 + 1;
+                    bottom_row = ROW2 - 1;
+                    break;
+                default:
+                case 2:
+                    top_row = ROW2 + 1;
+                    bottom_row = ROGUE_LINES - 2;
+                    break;
+            }
+
+            height = this.get_rand(4, (bottom_row - top_row + 1));
+            width = this.get_rand(7, (right_col - left_col - 2));
+
+            row_offset = this.get_rand(0, ((bottom_row - top_row) - height + 1));
+            col_offset = this.get_rand(0, ((right_col - left_col) - width + 1));
+
+            top_row += row_offset;
+            bottom_row = top_row + height - 1;
+
+            left_col += col_offset;
+            right_col = left_col + width - 1;
+
+            // 必須部屋以外は40%で生成されない
+            if ((rn !== r1) && (rn !== r2) && (rn !== r3) && this.rand_percent(40)) {
+                // goto END相当 (部屋座標だけ記録して終了)
+                this.rooms[rn].top_row = top_row;
+                this.rooms[rn].bottom_row = bottom_row;
+                this.rooms[rn].left_col = left_col;
+                this.rooms[rn].right_col = right_col;
+                return;
+            }
         }
-        switch (Math.floor(rn / 3)) {
-            case 0: top_row = MIN_ROW; bottom_row = this.ROW1 - 1; break;
-            case 1: top_row = this.ROW1 + 1; bottom_row = this.ROW2 - 1; break;
-            case 2: top_row = this.ROW2 + 1; bottom_row = this.height - 2; break; // 下端余白
-        }
 
-        // ランダムサイズ決定
-        height = 4 + Math.floor(Math.random() * (bottom_row - top_row + 1 - 4));
-        width = 7 + Math.floor(Math.random() * (right_col - left_col - 2 - 7));
-
-        // オフセット決定
-        row_offset = Math.floor(Math.random() * (bottom_row - top_row - height + 1));
-        col_offset = Math.floor(Math.random() * (right_col - left_col - width + 1));
-
-        top_row += row_offset;
-        bottom_row = top_row + height - 1;
-        left_col += col_offset;
-        right_col = left_col + width - 1;
-
-        // 部屋を作るかどうかの判定 (必須部屋以外は40%で生成されない)
-        if (rn !== r1 && rn !== r2 && rn !== r3 && Math.random() < 0.4) {
-            // 部屋なし (R_NOTHING)
-            this.rooms[rn].is_room = R_NOTHING;
-            this.rooms[rn].top_row = top_row;
-            this.rooms[rn].bottom_row = bottom_row;
-            this.rooms[rn].left_col = left_col;
-            this.rooms[rn].right_col = right_col;
-
-            // R_CROSSに昇格したときのために、接続中心点（交差点）を決めておく
-            this.rooms[rn].cross_row = top_row + Math.floor(Math.random() * (bottom_row - top_row + 1));
-            this.rooms[rn].cross_col = left_col + Math.floor(Math.random() * (right_col - left_col + 1));
-            return;
-        }
-
+        // B: 部屋を描画
         this.rooms[rn].is_room = R_ROOM;
+
+        for (let i = top_row; i <= bottom_row; i++) {
+            for (let j = left_col; j <= right_col; j++) {
+                let ch;
+                if (i === top_row || i === bottom_row) {
+                    ch = HORWALL;
+                } else if (j === left_col || j === right_col) {
+                    ch = VERTWALL;
+                } else {
+                    ch = FLOOR;
+                }
+                this.dungeon[i][j] = ch;
+            }
+        }
+
+        // END:
         this.rooms[rn].top_row = top_row;
         this.rooms[rn].bottom_row = bottom_row;
         this.rooms[rn].left_col = left_col;
         this.rooms[rn].right_col = right_col;
-
-        // JS互換プロパティ設定
-        this.rooms[rn].x = left_col;
-        this.rooms[rn].y = top_row;
-        this.rooms[rn].w = width;
-        this.rooms[rn].h = height;
-
-        // 描画
-        for (let y = top_row; y <= bottom_row; y++) {
-            for (let x = left_col; x <= right_col; x++) {
-                if (y === top_row || y === bottom_row) {
-                    this.tiles[y][x] = '-';
-                } else if (x === left_col || x === right_col) {
-                    this.tiles[y][x] = '|';
-                } else {
-                    this.tiles[y][x] = '.';
-                }
-            }
-        }
     }
 
     connect_rooms(room1, room2) {
-        // level.c connect_rooms
-        // 部屋がない場合は通路(R_CROSS)にする (init.c connect)
-        if (!(this.rooms[room1].is_room & (R_ROOM | R_MAZE))) {
-            this.rooms[room1].is_room = R_CROSS;
-        }
-        if (!(this.rooms[room2].is_room & (R_ROOM | R_MAZE))) {
-            this.rooms[room2].is_room = R_CROSS;
-        }
+        let row1, col1, row2, col2, dir, rev;
 
-        // R_NOTHING チェック削除（上でR_CROSSにするので不要）
-        if (!(this.rooms[room1].is_room & (R_ROOM | R_MAZE | R_CROSS)) ||
-            !(this.rooms[room2].is_room & (R_ROOM | R_MAZE | R_CROSS))) {
-            return false;
+        if (!(this.rooms[room1].is_room & (R_ROOM | R_MAZE)) ||
+            !(this.rooms[room2].is_room & (R_ROOM | R_MAZE))) {
+            return 0;
         }
-
-        let dir, rev; // 方向
 
         if (this.same_row(room1, room2)) {
             if (this.rooms[room1].left_col > this.rooms[room2].right_col) {
-                dir = LEFT; rev = RIGHT;
+                dir = LEFT;
+                rev = RIGHT;
             } else {
-                dir = RIGHT; rev = LEFT;
+                dir = RIGHT;
+                rev = LEFT;
             }
         } else if (this.same_col(room1, room2)) {
             if (this.rooms[room1].top_row > this.rooms[room2].bottom_row) {
-                dir = UPWARD; rev = DOWN;
+                dir = UPWARD;
+                rev = DOWN;
             } else {
-                dir = DOWN; rev = UPWARD;
+                dir = DOWN;
+                rev = UPWARD;
             }
         } else {
-            return false;
+            return 0;
         }
 
-        // ドア位置決定＆配置
-        // ドア位置決定＆配置
         const door1 = this.put_door(this.rooms[room1], dir);
         const door2 = this.put_door(this.rooms[room2], rev);
 
-        // 通路描画
-        this.draw_simple_passage(door1.row, door1.col, door2.row, door2.col, dir);
+        row1 = door1.row;
+        col1 = door1.col;
+        row2 = door2.row;
+        col2 = door2.col;
+
+        // オリジナル: 4%の確率で繰り返し描画!
+        do {
+            this.draw_simple_passage(row1, col1, row2, col2, dir);
+        } while (this.rand_percent(4));
 
         // 接続情報を記録
-        this.rooms[room1].doors[dir].oth_room = room2;
-        this.rooms[room1].doors[dir].door_row = door1.row;
-        this.rooms[room1].doors[dir].door_col = door1.col;
-        this.rooms[room1].doors[dir].oth_row = door2.row;
-        this.rooms[room1].doors[dir].oth_col = door2.col;
+        let dp = this.rooms[room1].doors[Math.floor(dir / 2)];
+        dp.oth_room = room2;
+        dp.oth_row = row2;
+        dp.oth_col = col2;
 
-        this.rooms[room2].doors[rev].oth_room = room1;
-        this.rooms[room2].doors[rev].door_row = door2.row;
-        this.rooms[room2].doors[rev].door_col = door2.col;
-        this.rooms[room2].doors[rev].oth_row = door1.row;
-        this.rooms[room2].doors[rev].oth_col = door1.col;
+        dp = this.rooms[room2].doors[Math.floor(((dir + 4) % DIRS) / 2)];
+        dp.oth_room = room1;
+        dp.oth_row = row1;
+        dp.oth_col = col1;
 
-        return true;
+        return 1;
     }
 
     put_door(rm, dir) {
-        // 部屋でない(R_CROSS)の場合は、予め決めておいた中心座標を返す
-        if (!(rm.is_room & R_ROOM)) {
-            const row = rm.cross_row;
-            const col = rm.cross_col;
-            this.tiles[row][col] = '#';
-            return { row, col };
-        }
-
         let row, col;
-        // wall_width = 1 (R_ROOM)
+        const wall_width = (rm.is_room & R_MAZE) ? 0 : 1;
 
         switch (dir) {
             case UPWARD:
             case DOWN:
                 row = (dir === UPWARD) ? rm.top_row : rm.bottom_row;
                 do {
-                    col = rm.left_col + 1 + Math.floor(Math.random() * (rm.right_col - rm.left_col - 1));
-                } while (this.tiles[row][col] === '|'); // 隅っこ回避（気休め）
+                    col = this.get_rand(rm.left_col + wall_width, rm.right_col - wall_width);
+                } while (!(this.dungeon[row][col] & (HORWALL | TUNNEL)));
                 break;
             case RIGHT:
             case LEFT:
                 col = (dir === LEFT) ? rm.left_col : rm.right_col;
                 do {
-                    row = rm.top_row + 1 + Math.floor(Math.random() * (rm.bottom_row - rm.top_row - 1));
-                } while (this.tiles[row][col] === '-');
+                    row = this.get_rand(rm.top_row + wall_width, rm.bottom_row - wall_width);
+                } while (!(this.dungeon[row][col] & (VERTWALL | TUNNEL)));
                 break;
         }
 
-        // 隠し扉判定 (20%で隠し扉)
-        // ただし、部屋でない(R_CROSS)の場合は常に通路にする
         if (rm.is_room & R_ROOM) {
-            if (Math.random() < 0.2) {
-                // 見た目を壁にする
-                if (dir === UPWARD || dir === DOWN) {
-                    this.tiles[row][col] = '-';
-                } else {
-                    this.tiles[row][col] = '|';
-                }
-                this.hiddenObjects[row][col] = Level.HIDDEN_DOOR;
-            } else {
-                this.tiles[row][col] = '+';
-            }
-        } else {
-            // R_CROSS (交差点): 部屋がないのでドアではなく通路にする
-            this.tiles[row][col] = '#';
+            this.dungeon[row][col] = DOOR;
         }
+
+        // 隠しドア判定
+        if ((this.floor > 2) && this.rand_percent(HIDE_PERCENT)) {
+            this.dungeon[row][col] |= HIDDEN;
+        }
+
+        rm.doors[Math.floor(dir / 2)].door_row = row;
+        rm.doors[Math.floor(dir / 2)].door_col = col;
 
         return { row, col };
     }
 
-    // 周囲を探索して隠し扉を見つける
-    search(x, y) {
-        const messages = [];
-        let found = false;
+    draw_simple_passage(row1, col1, row2, col2, dir) {
+        let i, middle;
 
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                if (dx === 0 && dy === 0) continue; // 足元は除外
+        if ((dir === LEFT) || (dir === RIGHT)) {
+            if (col1 > col2) {
+                [row1, row2] = [row2, row1];
+                [col1, col2] = [col2, col1];
+            }
+            middle = this.get_rand(col1 + 1, col2 - 1);
+            for (i = col1 + 1; i !== middle; i++) {
+                this.dungeon[row1][i] = TUNNEL;
+            }
+            for (i = row1; i !== row2; i += (row1 > row2) ? -1 : 1) {
+                this.dungeon[i][middle] = TUNNEL;
+            }
+            for (i = middle; i !== col2; i++) {
+                this.dungeon[row2][i] = TUNNEL;
+            }
+        } else {
+            if (row1 > row2) {
+                [row1, row2] = [row2, row1];
+                [col1, col2] = [col2, col1];
+            }
+            middle = this.get_rand(row1 + 1, row2 - 1);
+            for (i = row1 + 1; i !== middle; i++) {
+                this.dungeon[i][col1] = TUNNEL;
+            }
+            for (i = col1; i !== col2; i += (col1 > col2) ? -1 : 1) {
+                this.dungeon[middle][i] = TUNNEL;
+            }
+            for (i = middle; i !== row2; i++) {
+                this.dungeon[i][col2] = TUNNEL;
+            }
+        }
 
-                const cx = x + dx;
-                const cy = y + dy;
+        // 隠し通路の生成
+        if (this.rand_percent(HIDE_PERCENT)) {
+            this.hide_boxed_passage(row1, col1, row2, col2, 1);
+        }
+    }
 
-                if (!this.isInBounds(cx, cy)) continue;
+    hide_boxed_passage(row1, col1, row2, col2, n) {
+        let row, col, row_cut, col_cut;
+        let h, w;
 
-                const hidden = this.hiddenObjects[cy][cx];
-                if (hidden && hidden === Level.HIDDEN_DOOR) {
-                    // 発見判定 (簡易的に40%で発見)
-                    if (Math.random() < 0.4) {
-                        this.tiles[cy][cx] = '+';
-                        this.hiddenObjects[cy][cx] = null;
-                        if (!found) {
-                            messages.push('隠し扉を見つけた！');
-                            found = true;
+        if (this.floor > 2) {
+            if (row1 > row2) {
+                [row1, row2] = [row2, row1];
+            }
+            if (col1 > col2) {
+                [col1, col2] = [col2, col1];
+            }
+            h = row2 - row1;
+            w = col2 - col1;
+
+            if ((w >= 5) || (h >= 5)) {
+                row_cut = (h >= 2) ? 1 : 0;
+                col_cut = (w >= 2) ? 1 : 0;
+
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < 10; j++) {
+                        row = this.get_rand(row1 + row_cut, row2 - row_cut);
+                        col = this.get_rand(col1 + col_cut, col2 - col_cut);
+                        if (this.dungeon[row][col] === TUNNEL) {
+                            this.dungeon[row][col] |= HIDDEN;
+                            break;
                         }
                     }
                 }
             }
         }
-        return messages;
     }
 
-    draw_simple_passage(row1, col1, row2, col2, dir) {
-        // level.c draw_simple_passage
-        let i;
-        let middle;
+    add_mazes() {
+        let start, maze_percent;
 
-        if (dir === LEFT || dir === RIGHT) {
-            // 横方向接続
-            if (col1 > col2) {
-                [row1, row2] = [row2, row1];
-                [col1, col2] = [col2, col1];
+        if (this.floor > 1) {
+            start = this.get_rand(0, MAXROOMS - 1);
+            maze_percent = Math.floor((this.floor * 5) / 4);
+
+            if (this.floor > 15) {
+                maze_percent += this.floor;
             }
-            middle = col1 + 1 + Math.floor(Math.random() * (col2 - col1 - 1));
 
-            // 水平 -> 垂直 -> 水平
-            for (i = col1 + 1; i !== middle; i++) this.put_tunnel(row1, i);
+            for (let i = 0; i < MAXROOMS; i++) {
+                const j = (start + i) % MAXROOMS;
+                if (this.rooms[j].is_room & R_NOTHING) {
+                    if (this.rand_percent(maze_percent)) {
+                        this.rooms[j].is_room = R_MAZE;
 
-            const step = (row1 > row2) ? -1 : 1;
-            for (i = row1; i !== row2 + step; i += step) this.put_tunnel(i, middle); // 縦線
+                        const tr = this.rooms[j].top_row;
+                        const br = this.rooms[j].bottom_row;
+                        const lc = this.rooms[j].left_col;
+                        const rc = this.rooms[j].right_col;
 
-            for (i = middle; i !== col2; i++) this.put_tunnel(row2, i);
-
-        } else {
-            // 縦方向接続
-            if (row1 > row2) {
-                [row1, row2] = [row2, row1];
-                [col1, col2] = [col2, col1];
+                        const r = this.get_rand(tr + 1, br - 1);
+                        const c = this.get_rand(lc + 1, rc - 1);
+                        this.make_maze(r, c, tr, br, lc, rc);
+                        this.hide_boxed_passage(tr, lc, br, rc, this.get_rand(0, 2));
+                    }
+                }
             }
-            middle = row1 + 1 + Math.floor(Math.random() * (row2 - row1 - 1));
-
-            // 垂直 -> 水平 -> 垂直
-            for (i = row1 + 1; i !== middle; i++) this.put_tunnel(i, col1);
-
-            const step = (col1 > col2) ? -1 : 1;
-            for (i = col1; i !== col2 + step; i += step) this.put_tunnel(middle, i); // 横線
-
-            for (i = middle; i !== row2; i++) this.put_tunnel(i, col2);
         }
     }
 
-    put_tunnel(y, x) {
-        if (this.isInBounds(x, y)) {
-            const current = this.tiles[y][x];
-            // 空白または通路なら通路にする（部屋や壁・ドアは壊さない）
-            // current === '#' の場合も上書きしてOK
-            if (current === ' ' || current === '#') {
-                this.tiles[y][x] = '#';
+    make_maze(r, c, tr, br, lc, rc) {
+        const dirs = [UPWARD, DOWN, LEFT, RIGHT];
+
+        this.dungeon[r][c] = TUNNEL;
+
+        // 33%の確率で方向をシャッフル
+        if (this.rand_percent(33)) {
+            for (let i = 0; i < 10; i++) {
+                const t1 = this.get_rand(0, 3);
+                const t2 = this.get_rand(0, 3);
+                [dirs[t1], dirs[t2]] = [dirs[t2], dirs[t1]];
             }
         }
+
+        for (let i = 0; i < 4; i++) {
+            switch (dirs[i]) {
+                case UPWARD:
+                    if (((r - 1) >= tr) &&
+                        (this.dungeon[r - 1][c] !== TUNNEL) &&
+                        (this.dungeon[r - 1][c - 1] !== TUNNEL) &&
+                        (this.dungeon[r - 1][c + 1] !== TUNNEL) &&
+                        (this.dungeon[r - 2][c] !== TUNNEL)) {
+                        this.make_maze(r - 1, c, tr, br, lc, rc);
+                    }
+                    break;
+                case DOWN:
+                    if (((r + 1) <= br) &&
+                        (this.dungeon[r + 1][c] !== TUNNEL) &&
+                        (this.dungeon[r + 1][c - 1] !== TUNNEL) &&
+                        (this.dungeon[r + 1][c + 1] !== TUNNEL) &&
+                        (this.dungeon[r + 2][c] !== TUNNEL)) {
+                        this.make_maze(r + 1, c, tr, br, lc, rc);
+                    }
+                    break;
+                case LEFT:
+                    if (((c - 1) >= lc) &&
+                        (this.dungeon[r][c - 1] !== TUNNEL) &&
+                        (this.dungeon[r - 1][c - 1] !== TUNNEL) &&
+                        (this.dungeon[r + 1][c - 1] !== TUNNEL) &&
+                        (this.dungeon[r][c - 2] !== TUNNEL)) {
+                        this.make_maze(r, c - 1, tr, br, lc, rc);
+                    }
+                    break;
+                case RIGHT:
+                    if (((c + 1) <= rc) &&
+                        (this.dungeon[r][c + 1] !== TUNNEL) &&
+                        (this.dungeon[r - 1][c + 1] !== TUNNEL) &&
+                        (this.dungeon[r + 1][c + 1] !== TUNNEL) &&
+                        (this.dungeon[r][c + 2] !== TUNNEL)) {
+                        this.make_maze(r, c + 1, tr, br, lc, rc);
+                    }
+                    break;
+            }
+        }
+    }
+
+    fill_out_level() {
+        this.mix_random_rooms();
+        this.r_de = NO_ROOM;
+
+        for (let i = 0; i < MAXROOMS; i++) {
+            const rn = random_rooms[i];
+            if ((this.rooms[rn].is_room & R_NOTHING) ||
+                ((this.rooms[rn].is_room & R_CROSS) && this.coin_toss())) {
+                this.fill_it(rn, true);
+            }
+        }
+        if (this.r_de !== NO_ROOM) {
+            this.fill_it(this.r_de, false);
+        }
+    }
+
+    fill_it(rn, do_rec_de) {
+        let tunnel_dir, door_dir, drow, dcol;
+        let target_room, rooms_found = 0;
+        let srow, scol;
+        const offsets = [-1, 1, 3, -3];
+        let did_this = false;
+
+        // offsetsをシャッフル
+        for (let i = 0; i < 10; i++) {
+            const sr = this.get_rand(0, 3);
+            const sc = this.get_rand(0, 3);
+            [offsets[sr], offsets[sc]] = [offsets[sc], offsets[sr]];
+        }
+
+        for (let i = 0; i < 4; i++) {
+            target_room = rn + offsets[i];
+
+            if (((target_room < 0) || (target_room >= MAXROOMS)) ||
+                (!(this.same_row(rn, target_room) || this.same_col(rn, target_room))) ||
+                (!(this.rooms[target_room].is_room & (R_ROOM | R_MAZE)))) {
+                continue;
+            }
+
+            if (this.same_row(rn, target_room)) {
+                tunnel_dir = (this.rooms[rn].left_col < this.rooms[target_room].left_col) ?
+                    RIGHT : LEFT;
+            } else {
+                tunnel_dir = (this.rooms[rn].top_row < this.rooms[target_room].top_row) ?
+                    DOWN : UPWARD;
+            }
+
+            door_dir = ((tunnel_dir + 4) % DIRS);
+            if (this.rooms[target_room].doors[Math.floor(door_dir / 2)].oth_room !== NO_ROOM) {
+                continue;
+            }
+
+            if ((!do_rec_de || did_this) ||
+                !this.mask_room(rn, TUNNEL)) {
+                srow = Math.floor((this.rooms[rn].top_row + this.rooms[rn].bottom_row) / 2);
+                scol = Math.floor((this.rooms[rn].left_col + this.rooms[rn].right_col) / 2);
+            } else {
+                const pos = this.mask_room(rn, TUNNEL);
+                srow = pos.row;
+                scol = pos.col;
+            }
+
+            const door = this.put_door(this.rooms[target_room], door_dir);
+            drow = door.row;
+            dcol = door.col;
+
+            rooms_found++;
+            this.draw_simple_passage(srow, scol, drow, dcol, tunnel_dir);
+            this.rooms[rn].is_room = R_DEADEND;
+            this.dungeon[srow][scol] = TUNNEL;
+
+            if ((i < 3) && (!did_this)) {
+                did_this = true;
+                if (this.coin_toss()) {
+                    continue;
+                }
+            }
+            if ((rooms_found < 2) && do_rec_de) {
+                this.recursive_deadend(rn, offsets, srow, scol);
+            }
+            break;
+        }
+    }
+
+    recursive_deadend(rn, offsets, srow, scol) {
+        let de, drow, dcol, tunnel_dir;
+
+        this.rooms[rn].is_room = R_DEADEND;
+        this.dungeon[srow][scol] = TUNNEL;
+
+        for (let i = 0; i < 4; i++) {
+            de = rn + offsets[i];
+            if (((de < 0) || (de >= MAXROOMS)) ||
+                (!(this.same_row(rn, de) || this.same_col(rn, de)))) {
+                continue;
+            }
+            if (!(this.rooms[de].is_room & R_NOTHING)) {
+                continue;
+            }
+
+            drow = Math.floor((this.rooms[de].top_row + this.rooms[de].bottom_row) / 2);
+            dcol = Math.floor((this.rooms[de].left_col + this.rooms[de].right_col) / 2);
+
+            if (this.same_row(rn, de)) {
+                tunnel_dir = (this.rooms[rn].left_col < this.rooms[de].left_col) ?
+                    RIGHT : LEFT;
+            } else {
+                tunnel_dir = (this.rooms[rn].top_row < this.rooms[de].top_row) ?
+                    DOWN : UPWARD;
+            }
+
+            this.draw_simple_passage(srow, scol, drow, dcol, tunnel_dir);
+            this.r_de = de;
+            this.recursive_deadend(de, offsets, drow, dcol);
+        }
+    }
+
+    mask_room(rn, mask) {
+        for (let i = this.rooms[rn].top_row; i <= this.rooms[rn].bottom_row; i++) {
+            for (let j = this.rooms[rn].left_col; j <= this.rooms[rn].right_col; j++) {
+                if (this.dungeon[i][j] & mask) {
+                    return { row: i, col: j };
+                }
+            }
+        }
+        return null;
+    }
+
+    same_row(room1, room2) {
+        return Math.floor(room1 / 3) === Math.floor(room2 / 3);
+    }
+
+    same_col(room1, room2) {
+        return (room1 % 3) === (room2 % 3);
     }
 
     is_all_connected() {
-        // room.c is_all_connected
-        for (let i = 0; i < MAXROOMS; i++) this.rooms[i].visited = false;
+        for (let i = 0; i < MAXROOMS; i++) {
+            this.rooms[i].visited = false;
+        }
 
         let start_room = NO_ROOM;
         for (let i = 0; i < MAXROOMS; i++) {
@@ -439,7 +672,7 @@ export class Level {
                 break;
             }
         }
-        if (start_room === NO_ROOM) return true; // 部屋ゼロなら連結とみなす
+        if (start_room === NO_ROOM) return true;
 
         this.visit_rooms(start_room);
 
@@ -461,56 +694,51 @@ export class Level {
         }
     }
 
-    same_row(room1, room2) {
-        return Math.floor(room1 / 3) === Math.floor(room2 / 3);
-    }
-    same_col(room1, room2) {
-        return (room1 % 3) === (room2 % 3);
-    }
-
-    // 交差点部屋内の通路接続
-    connect_passages_in_cross_rooms() {
+    mix_random_rooms() {
         for (let i = 0; i < MAXROOMS; i++) {
-            const room = this.rooms[i];
-            // R_CROSS かつ R_ROOM でない場合
-            if (room.is_room & R_CROSS) {
-                // 有効なドア座標リストを作成
-                const points = [];
-                for (let d = 0; d < 4; d++) {
-                    if (room.doors[d].oth_room !== NO_ROOM) {
-                        points.push({
-                            row: room.doors[d].door_row,
-                            col: room.doors[d].door_col
-                        });
+            const j = this.get_rand(i, MAXROOMS - 1);
+            [random_rooms[i], random_rooms[j]] = [random_rooms[j], random_rooms[i]];
+        }
+    }
+
+    convert_dungeon_to_tiles() {
+        for (let i = 0; i < ROGUE_LINES; i++) {
+            for (let j = 0; j < ROGUE_COLUMNS; j++) {
+                const cell = this.dungeon[i][j];
+
+                // HIDDENフラグを除去してタイル判定
+                const visible_cell = cell & ~HIDDEN;
+
+                if (visible_cell & HORWALL) {
+                    this.tiles[i][j] = '-';
+                } else if (visible_cell & VERTWALL) {
+                    this.tiles[i][j] = '|';
+                } else if (visible_cell & DOOR) {
+                    // 隠しドアの場合は壁として表示
+                    if (cell & HIDDEN) {
+                        // 左右に横壁があれば横壁、なければ縦壁 (オリジナルRogue準拠)
+                        if ((j > 0 && (this.dungeon[i][j - 1] & HORWALL)) ||
+                            (j < ROGUE_COLUMNS - 1 && (this.dungeon[i][j + 1] & HORWALL))) {
+                            this.tiles[i][j] = '-';
+                        } else {
+                            this.tiles[i][j] = '|';
+                        }
+                    } else {
+                        this.tiles[i][j] = '+';
                     }
-                }
-
-                // 2点以上あればつなぐ
-                if (points.length >= 2) {
-                    // 重心（平均座標）を計算してハブにする
-                    let sumRow = 0, sumCol = 0;
-                    points.forEach(p => { sumRow += p.row; sumCol += p.col; });
-                    const centerRow = Math.floor(sumRow / points.length);
-                    const centerCol = Math.floor(sumCol / points.length); // ※横移動で使う
-
-                    // 全ての点から重心行(centerRow)へ縦移動し、そこで合流させるスタイル
-                    // これにより形は「串」または「あみだくじ」状になりシンプルになる
-                    points.forEach(p => {
-                        // 1. 縦移動: 自分の位置(p.row)から重心行(centerRow)まで
-                        let rStart = Math.min(p.row, centerRow);
-                        let rEnd = Math.max(p.row, centerRow);
-                        for (let y = rStart; y <= rEnd; y++) {
-                            this.put_tunnel(y, p.col);
-                        }
-
-                        // 2. 横移動: 自分の列(p.col)から重心列(centerCol)まで（行はcenterRow上）
-                        // これで全員が (centerRow, centerCol) で完全につながる
-                        let cStart = Math.min(p.col, centerCol);
-                        let cEnd = Math.max(p.col, centerCol);
-                        for (let x = cStart; x <= cEnd; x++) {
-                            this.put_tunnel(centerRow, x);
-                        }
-                    });
+                } else if (visible_cell & FLOOR) {
+                    this.tiles[i][j] = '.';
+                } else if (visible_cell & TUNNEL) {
+                    // 隠し通路の場合は空白として表示
+                    if (cell & HIDDEN) {
+                        this.tiles[i][j] = ' ';
+                    } else {
+                        this.tiles[i][j] = '#';
+                    }
+                } else if (visible_cell & STAIRS) {
+                    this.tiles[i][j] = '%';
+                } else {
+                    this.tiles[i][j] = ' ';
                 }
             }
         }
@@ -521,13 +749,73 @@ export class Level {
         const validRooms = this.rooms.filter(r => r.is_room & R_ROOM);
         if (validRooms.length > 0) {
             const room = validRooms[Math.floor(Math.random() * validRooms.length)];
-            const stairX = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
-            const stairY = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+            let stairX, stairY;
+
+            // 部屋の床にランダム配置
+            do {
+                stairX = this.get_rand(room.left_col + 1, room.right_col - 1);
+                stairY = this.get_rand(room.top_row + 1, room.bottom_row - 1);
+            } while (this.dungeon[stairY][stairX] !== FLOOR);
+
+            this.dungeon[stairY][stairX] = STAIRS;
             this.tiles[stairY][stairX] = '%';
         }
     }
 
-    // --- 既存のユーティリティ ---
+    // 探索処理 (隠しドア・隠し通路を見つける)
+    search(x, y) {
+        const messages = [];
+        let found = false;
+
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+
+                const cx = x + dx;
+                const cy = y + dy;
+
+                if (!this.isInBounds(cx, cy)) continue;
+
+                const cell = this.dungeon[cy][cx];
+                if (cell & HIDDEN) {
+                    // 発見判定 (簡易的に40%で発見)
+                    if (Math.random() < 0.4) {
+                        this.dungeon[cy][cx] &= ~HIDDEN;
+
+                        // タイルを更新
+                        if (cell & DOOR) {
+                            this.tiles[cy][cx] = '+';
+                            if (!found) {
+                                messages.push('隠し扉を見つけた！');
+                                found = true;
+                            }
+                        } else if (cell & TUNNEL) {
+                            this.tiles[cy][cx] = '#';
+                            if (!found) {
+                                messages.push('隠し通路を見つけた！');
+                                found = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return messages;
+    }
+
+    // === ユーティリティ関数 ===
+
+    get_rand(min, max) {
+        return min + Math.floor(Math.random() * (max - min + 1));
+    }
+
+    coin_toss() {
+        return Math.random() < 0.5;
+    }
+
+    rand_percent(percentage) {
+        return Math.random() * 100 < percentage;
+    }
 
     getTile(x, y) {
         if (!this.isInBounds(x, y)) return ' ';
@@ -535,7 +823,7 @@ export class Level {
     }
 
     isInBounds(x, y) {
-        return x >= 0 && x < this.width && y >= 0 && y < this.height;
+        return x >= 0 && x < ROGUE_COLUMNS && y >= 0 && y < ROGUE_LINES;
     }
 
     isWalkable(x, y) {
@@ -549,9 +837,7 @@ export class Level {
         return this.visited[y][x];
     }
 
-    // 移動判定 (move.c can_move)
     canMove(x1, y1, x2, y2) {
-        // 目的地が通行可能か
         if (!this.isWalkable(x2, y2)) {
             return false;
         }
@@ -561,24 +847,9 @@ export class Level {
             const tile1 = this.getTile(x1, y1);
             const tile2 = this.getTile(x2, y2);
 
-            // ドアへの斜め入り/出し禁止
             if (tile1 === '+' || tile2 === '+') {
                 return false;
             }
-
-            // 角抜けチェック (dungeon[row1][col2] == 0 || dungeon[row2][col1] == 0)
-            // つまり、移動経路の直角位置にあるマスが両方とも通行可能でなければならない
-            // オリジナルは (!dungeon[row1][col2]) || (!dungeon[row2][col1]) なので、
-            // どちらか一方が壁ならNG。
-            // 例:
-            // @ #
-            // . .
-            // 左上(@)から右下(.)へ行くとき、右上(#)か左下(.)が通れなければならない。
-            // Rogueの仕様:
-            // if ((dungeon[row1][col1] & DOOR) || (dungeon[row2][col2] & DOOR)
-            //     || (!dungeon[row1][col2]) || (!dungeon[row2][col1])) return 0;
-            // つまり、直角位置の「どちらか一方でも」壁（通行不可）なら移動できない。
-            // 壁の角を曲がるには、角が空いていないといけない。
 
             if (!this.isWalkable(x1, y2) || !this.isWalkable(x2, y1)) {
                 return false;
@@ -587,9 +858,7 @@ export class Level {
         return true;
     }
 
-    // 視線チェック (Bresenham's line algorithm)
     isLineOfSight(x1, y1, x2, y2) {
-        // 同じ部屋なら見える
         const r1 = this.getRoomAt(x1, y1);
         const r2 = this.getRoomAt(x2, y2);
         if (r1 && r2 && r1 === r2) return true;
@@ -606,7 +875,6 @@ export class Level {
         while (true) {
             if (cx === x2 && cy === y2) return true;
 
-            // 始点と終点はチェックしない（通過点のみ）
             if (cx !== x1 || cy !== y1) {
                 if (!this.allowsSight(cx, cy)) return false;
             }
@@ -623,16 +891,12 @@ export class Level {
         }
     }
 
-    // 視線を通すタイルか
     allowsSight(x, y) {
         const t = this.getTile(x, y);
-        // 床(.), 通路(#), ドア(+), 階段(%), 罠(^), アイテム/モンスター等は別途(ここでは地形のみ)
-        // 壁('-', '|')や空白(' ')は通さない
         return ['.', '#', '+', '%', '^'].includes(t);
     }
 
     updateVisibility(playerX, playerY) {
-        // JS互換: getRoomAt等を使って視界更新
         const room = this.getRoomAt(playerX, playerY);
         const tile = this.getTile(playerX, playerY);
 
@@ -649,8 +913,8 @@ export class Level {
     getRoomAt(x, y) {
         for (const room of this.rooms) {
             if ((room.is_room & R_ROOM) &&
-                x >= room.x && x < room.x + room.w &&
-                y >= room.y && y < room.y + room.h) {
+                x >= room.left_col && x <= room.right_col &&
+                y >= room.top_row && y <= room.bottom_row) {
                 return room;
             }
         }
@@ -658,8 +922,8 @@ export class Level {
     }
 
     lightUpRoom(room) {
-        for (let y = room.y; y < room.y + room.h; y++) {
-            for (let x = room.x; x < room.x + room.w; x++) {
+        for (let y = room.top_row; y <= room.bottom_row; y++) {
+            for (let x = room.left_col; x <= room.right_col; x++) {
                 if (this.isInBounds(x, y)) {
                     this.visited[y][x] = true;
                 }
@@ -668,28 +932,20 @@ export class Level {
     }
 
     lightPassage(x, y) {
-        // room.c light_passage 相当
         for (let i = -1; i <= 1; i++) {
             for (let j = -1; j <= 1; j++) {
                 const py = y + i;
                 const px = x + j;
-                // isWalkable(x, y) なので、x, y の順で渡す
                 if (this.isWalkable(px, py)) {
-                    // this.visited[y][x] なので y, x の順でアクセス
                     this.visited[py][px] = true;
                 }
             }
         }
     }
 
-    isVisible(x, y) {
-        if (!this.isInBounds(x, y)) return false;
-        return this.visited[y][x];
-    }
-
     revealAll() {
-        for (let y = 0; y < this.height; y++) {
-            for (let x = 0; x < this.width; x++) {
+        for (let y = 0; y < ROGUE_LINES; y++) {
+            for (let x = 0; x < ROGUE_COLUMNS; x++) {
                 if (this.isInBounds(x, y)) {
                     this.visited[y][x] = true;
                 }
@@ -697,40 +953,19 @@ export class Level {
         }
     }
 
-    // 視界判定 (Original Rogue mon_sees 準拠)
     canSee(x1, y1, x2, y2) {
-        // 1. 隣接セルは常に見える
         const dx = Math.abs(x1 - x2);
         const dy = Math.abs(y1 - y2);
         if (dx <= 1 && dy <= 1) return true;
 
-        // 2. 部屋判定
         const r1 = this.getRoomAt(x1, y1);
         const r2 = this.getRoomAt(x2, y2);
 
-        // 両方同じ部屋にいて、かつその部屋が迷路でなければ見える
         if (r1 && r2 && r1 === r2 && r1.is_room === R_ROOM) {
             return true;
         }
 
-        // 3. 通路での直線視界判定
-        // どちらか（あるいは両方）が通路、またはドアの上にいる場合
-        // 直線（縦or横）で、間に遮蔽物がなければ見える
         if (x1 === x2 || y1 === y2) {
-            // 簡易判定: 間に壁がないかチェック
-            // (本来はtunnel判定など厳密だが、ここではWalkableで判定)
-
-            // 距離が遠すぎる場合は見えない？ Rogueは暗闇通路は1ブロック先しか見えない設定だっけ？
-            // いや、モンスターはプレイヤーが見えるかどうかの判定。
-            // プレイヤーは通路では1マス先しか見えない（暗闇）が、モンスターは夜目がある設定かも。
-            // can_see (monster.c) -> プレイヤーが見えるか。
-            // プレイヤーが暗い通路にいる場合、モンスターも隣接しないと見えない可能性が高い。
-
-            /* 
-               Original mon_sees:
-               if (rn == NO_ROOM) ... rdif, cdif <= 1
-               つまり、部屋以外（通路）では隣接していないと見えない！？
-            */
             return false;
         }
 

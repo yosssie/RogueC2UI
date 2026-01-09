@@ -189,6 +189,7 @@ export class Item {
         this.x = x;
         this.y = y;
         this.identified = false; // 識別済みフラグ
+        this.picked_up = false; // 拾われたフラグ (SCARE_MONSTER用)
 
         // 金貨と食料は最初から識別済み
         if (symbol === '*' || symbol === ':') {
@@ -422,8 +423,8 @@ export class Item {
                 player.hp = Math.max(player.hp + hpGain, player.maxHp); // 現在HPも増やす？ Rogueは増えないかも
                 // Expも更新
                 player.exp = (player.level - 1) * 10 + 1; // 簡易
-                game.display.showMessage(`レベル ${player.level} にようこそ。`);
-                return '急に気分がよくなった。';
+                // game.display.showMessage(`レベル ${player.level} にようこそ。`);
+                return `急に気分がよくなった。 レベル ${player.level} にようこそ。`;
             case 'potion_blindness':
                 // use.c BLINDNESS: 500-800ターン
                 status.blind += Math.floor(Math.random() * 300) + 500;
@@ -533,10 +534,12 @@ export class Item {
     useScroll(player, game) {
         switch (this.id) {
             case 'scroll_identify':
+                // use.c idntfy() (line 564-588) - 1つずつ選択して識別
                 if (game) {
-                    game.player.inventory.forEach(i => i.identified = true);
+                    // 識別モードへ移行
+                    game.selectItemToIdentify();
                 }
-                return Mesg[253];
+                return Mesg[253] + " " + Mesg[41]; // "これは持ちものを調べる巻き物だった。 調べる持ちものの種類は？"
             case 'scroll_teleportation':
                 if (game && game.level) {
                     game.trapManager.teleportPlayer();
@@ -552,15 +555,19 @@ export class Item {
                 return '何も起こらなかった。';
             case 'scroll_enchant_weapon':
                 if (player.weapon) {
-                    // 命中かダメージのどちらかを強化
+                    // 命中かダメージのどちらかを強化 (use.c line 320-328)
                     if (Math.random() < 0.5) player.weapon.hitBonus++;
                     else player.weapon.damageBonus++;
+                    // 呪い解除 (use.c line 326)
+                    player.weapon.cursed = false;
                     return Mesg[249].replace('%s', player.weapon.name).replace('%s', '');
                 }
                 return Mesg[250];
             case 'scroll_enchant_armor':
                 if (player.equippedArmor) {
                     player.equippedArmor.value++;
+                    // 呪い解除 (use.c line 336)
+                    player.equippedArmor.cursed = false;
                     player.updateStats(); // AC更新
                     return Mesg[251].replace('%s', '');
                 }
@@ -568,6 +575,8 @@ export class Item {
             case 'scroll_protect_armor':
                 if (player.equippedArmor) {
                     player.equippedArmor.protected = true;
+                    // 呪い解除 (use.c line 359)
+                    player.equippedArmor.cursed = false;
                     return Mesg[255];
                 }
                 return Mesg[256];
@@ -589,7 +598,8 @@ export class Item {
                 player.status.sleep += Math.floor(Math.random() * 4) + 4;
                 return Mesg[254];
             case 'scroll_scare_monster':
-                return Mesg[248];
+                // use.c line 308-310: メッセージのみ表示、その後vanishで消滅
+                return Mesg[248]; // "遠くから、狂ったような笑い声が聞こえてくる。"
             case 'scroll_aggravate_monster':
                 // monster.c aggravate() (line 738-753)
                 game.monsters.forEach(m => {
@@ -680,6 +690,7 @@ export class Item {
         newItem.value = this.value;
         newItem.quantity = 1; // クローンは常に1個
         newItem.identified = this.identified;
+        newItem.picked_up = this.picked_up; // SCARE_MONSTER用
 
         // 変動パラメータ
         newItem.hitBonus = this.hitBonus;

@@ -169,10 +169,10 @@ export class Monster {
         return false;
     }
 
-    act(player, level, monsters = []) {
+    act(player, level, monsters = [], items = []) {
         // 混乱状態ならランダム移動
         if (this.hasFlag(Monster.FLAGS.CONFUSED)) {
-            this.randomMove(level, monsters);
+            this.randomMove(level, monsters, items);
             return;
         }
 
@@ -184,7 +184,7 @@ export class Monster {
 
         // ふらふら移動 (FLITS) Check
         if (this.hasFlag(Monster.FLAGS.FLITS) && Math.random() < 0.47) {
-            this.randomMove(level, monsters);
+            this.randomMove(level, monsters, items);
             return;
         }
 
@@ -212,11 +212,11 @@ export class Monster {
         // 3. 移動決定
         if (this.tcol !== null && this.trow !== null) {
             // ターゲットがあるならそこに向かう
-            this.moveToTarget(this.tcol, this.trow, level, monsters, player);
+            this.moveToTarget(this.tcol, this.trow, level, monsters, player, items);
         } else {
-            // ターゲットがないならランダム徘徊 (WANDERS フラグ持ちのみ)
+            // ターゲットがないならランダム徘徨 (WANDERS フラグ持ちのみ)
             if (this.hasFlag(Monster.FLAGS.WANDERS)) {
-                this.randomMove(level, monsters);
+                this.randomMove(level, monsters, items);
             }
         }
     }
@@ -370,13 +370,13 @@ export class Monster {
     }
 
     // ターゲットに向かって移動
-    moveToTarget(targetX, targetY, level, monsters = [], player = null) {
+    moveToTarget(targetX, targetY, level, monsters = [], player = null, items = []) {
         const dx = Math.sign(targetX - this.x);
         const dy = Math.sign(targetY - this.y);
 
         // 移動に成功したら lastX/Y を更新するラッパー
         const tryMove = (newX, newY) => {
-            if (this.canMoveTo(newX, newY, level, monsters, player)) {
+            if (this.canMoveTo(newX, newY, level, monsters, player, items)) {
                 this.lastX = this.x;
                 this.lastY = this.y;
                 this.x = newX;
@@ -402,10 +402,10 @@ export class Monster {
         }
 
         // どちらも無理なら...
-        this.randomMove(level, monsters);
+        this.randomMove(level, monsters, items);
     }
 
-    randomMove(level, monsters = []) {
+    randomMove(level, monsters = [], items = []) {
         const directions = [
             { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
             { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
@@ -419,7 +419,7 @@ export class Monster {
         for (const dir of directions) {
             const newX = this.x + dir.dx;
             const newY = this.y + dir.dy;
-            if (this.canMoveTo(newX, newY, level, monsters)) {
+            if (this.canMoveTo(newX, newY, level, monsters, null, items)) {
                 possibleMoves.push({ x: newX, y: newY });
             }
         }
@@ -432,7 +432,7 @@ export class Monster {
     }
 
     // 移動可能かチェック (monster.c mon_can_go() 移植)
-    canMoveTo(x, y, level, monsters = [], player = null) {
+    canMoveTo(x, y, level, monsters = [], player = null, items = []) {
         // 移動距離チェック（2マス以上は不可）
         const dr = Math.abs(this.y - y);
         const dc = Math.abs(this.x - x);
@@ -466,7 +466,16 @@ export class Monster {
             }
         }
 
-        // TODO: SCARE_MONSTER 巻物のチェック（未実装）
+        // SCARE_MONSTER巻物のチェック (monster.c mon_can_go line 447-452)
+        // 地面にSCARE_MONSTERの巻物がある場所には移動できない
+        if (items && items.length > 0) {
+            const scareScroll = items.find(item =>
+                item.x === x && item.y === y && item.id === 'scroll_scare_monster'
+            );
+            if (scareScroll) {
+                return false;
+            }
+        }
 
         return true;
     }

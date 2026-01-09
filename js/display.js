@@ -200,6 +200,17 @@ Mon:${nearbyMonsters}`;
         });
     }
 
+    // 全てのメッセージをoldにする（ターン経過時などに呼ぶ）
+    archiveMessages() {
+        const items = Array.from(this.messageLog.children);
+        items.forEach(item => {
+            if (item.classList.contains('current-message')) {
+                item.classList.remove('current-message');
+                item.classList.add('old-message');
+            }
+        });
+    }
+
     showMessage(message) {
         // 空のメッセージは無視
         if (!message || message.trim() === '') {
@@ -217,14 +228,6 @@ Mon:${nearbyMonsters}`;
             }
         }
 
-        // クラスをシフト (current -> old)
-        items.forEach(item => {
-            if (item.classList.contains('current-message')) {
-                item.classList.remove('current-message');
-                item.classList.add('old-message');
-            }
-        });
-
         // 新しいメッセージを追加
         const newItem = document.createElement('li');
         newItem.textContent = message;
@@ -240,7 +243,7 @@ Mon:${nearbyMonsters}`;
         this.messageLog.scrollTop = this.messageLog.scrollHeight;
     }
 
-    updateInventory(inventory, player = null) {
+    updateInventory(inventory, player = null, identifyMode = false, cursorIndex = 0) {
         this.inventoryList.innerHTML = '';
         if (inventory.length === 0) {
             const emptyItem = document.createElement('li');
@@ -285,6 +288,12 @@ Mon:${nearbyMonsters}`;
                     li.classList.add('at-feet-item');
                 }
 
+                // 識別モード時、選択中のアイテムは黄色背景
+                if (identifyMode && index === cursorIndex) {
+                    li.style.setProperty('background-color', '#ffff00', 'important');
+                    li.style.color = '#000';
+                }
+
                 // 呪われたアイテムは赤色で表示
                 if (item.cursed && item.identified) {
                     li.classList.add('cursed-item');
@@ -300,7 +309,7 @@ Mon:${nearbyMonsters}`;
                     } else if (item.type === 'ring' && item.enchantment > 0) {
                         hasPositiveEnchant = true;
                     }
-                    if (hasPositiveEnchant) {
+                    if (hasPositiveEnchant && !(identifyMode && index === cursorIndex)) {
                         li.classList.add('enchanted-item');
                     }
                 }
