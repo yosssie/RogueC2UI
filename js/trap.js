@@ -85,7 +85,7 @@ export class TrapManager {
     }
 
     // trap_player() - 罠発動処理
-    trapPlayer(row, col) {
+    async trapPlayer(row, col) {
         const trapType = this.trapAt(row, col);
         if (trapType === TrapType.NO_TRAP) {
             return;
@@ -102,8 +102,9 @@ export class TrapManager {
             trap.hidden = false;
         }
 
-        // 経験値による回避判定 (ring_exp は指輪効果、未実装なので0)
-        const ringExp = 0; // TODO: 指輪実装後に追加
+        // 経験値による回避判定
+        // ring_exp: 器用さの指輪の修正値 (ring.c ring_stats line 296)
+        const ringExp = this.game.ringManager ? this.game.ringManager.getExpBonus() : 0;
         if (Math.random() * 100 < (this.game.player.level + ringExp)) {
             this.game.display.showMessage(Mesg[228]);
             return;
@@ -124,7 +125,7 @@ export class TrapManager {
                 this.triggerDartTrap();
                 break;
             case TrapType.SLEEPING_GAS_TRAP:
-                this.triggerSleepingGasTrap();
+                await this.triggerSleepingGasTrap();
                 break;
             case TrapType.RUST_TRAP:
                 this.triggerRustTrap();
@@ -136,8 +137,8 @@ export class TrapManager {
     triggerTrapDoor() {
         this.trapDoorActive = true;
         this.game.display.showMessage(Mesg[217]);
-        // 次の階層へ強制移動（Game.jsで処理）
-        this.game.descendStairs(true); // 強制フラグ付き
+        // 次の階層へ強制移動
+        this.game.nextLevel();
     }
 
     // 熊の罠
@@ -168,24 +169,28 @@ export class TrapManager {
             return;
         }
 
-        // 40%の確率でSTR-1 (sustain_strength 未実装)
-        if (Math.random() < 0.4 && this.game.player.str >= 3) {
+        // 40%の確率でSTR-1 (力維持の指輪がない場合)
+        const hasSustain = this.game.ringManager && this.game.ringManager.hasSustainStrength();
+        if (!hasSustain && Math.random() < 0.4 && this.game.player.str >= 3) {
             this.game.player.str--;
-            this.game.display.showMessage('毒で弱くなった...');
+            this.game.display.showMessage(Mesg[73]); // "マムシの毒が回った。" (mesg[73] "A sting weakens you")
         }
     }
 
     // 睡眠ガス罠
-    triggerSleepingGasTrap() {
+    async triggerSleepingGasTrap() {
         this.game.display.showMessage(Mesg[225]);
         // take_a_nap() - プレイヤーが数ターン行動不能
-        // TODO: 状態異常システム実装後に追加
         this.game.display.showMessage('眠ってしまった...');
 
-        // 簡易実装: モンスターが数ターン行動
-        for (let i = 0; i < 3; i++) {
-            this.game.processTurn();
-            if (this.game.player.hp <= 0) break;
+        // モンスターが数ターン行動
+        // ランダムに2-5ターン (use.c take_a_nap: get_rand(2, 5))
+        const sleepTurns = 2 + Math.floor(Math.random() * 4);
+
+        for (let i = 0; i < sleepTurns; i++) {
+            await this.game.wait(200); // ウェイト
+            await this.game.processTurn();
+            if (this.game.player.hp <= 0) return;
         }
         this.game.display.showMessage('目が覚めた。');
     }
@@ -318,17 +323,24 @@ export class TrapManager {
     }
 
     // 熊の罠の拘束チェック
-    isBearTrapped() {
+    // ターン経過処理 (Game.processTurnから呼ばれる)
+    processTurn() {
         if (this.bearTrapTurns > 0) {
             this.bearTrapTurns--;
-            if (this.bearTrapTurns > 0) {
-                this.game.display.showMessage(Mesg[68]);
-                return true;
-            } else {
-                this.game.display.showMessage(Mesg[66]);
-                return false;
-            }
+            // 拘束が解けたかチェックしたいが、メッセージ表示タイミングはプレイヤー行動直前が良いか？
+            // ここで0になっても、次の行動時に「動けるようになった」とわかるのが自然。
         }
+    }
+
+    // 熊の罠の拘束チェック (移動試行時に呼ばれる)
+    isBearTrapped() {
+        if (this.bearTrapTurns > 0) {
+            this.game.display.showMessage(Mesg[68]); // "罠にかかって動けない。"
+            return true;
+        }
+        // 0になった瞬間のメッセージ処理はここで行うと移動試行時しか出ない。
+        // でも移動しようとして初めて「あ、動ける」と気づくのは自然かも？
+        // オリジナルRogueではreg_moveで減算して、移動しようとしたときにチェック。
         return false;
     }
 

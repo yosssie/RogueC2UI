@@ -41,6 +41,8 @@ export class Game {
         this.ringManager = new RingManager(this); // 指輪管理
         this.wandManager = new WandManager(this); // 杖管理
 
+        this.isProcessing = false; // アクション処理中フラグ（非同期処理中の入力ブロック用）
+
         this.level = null;
         this.player = null;
         this.monsters = [];
@@ -488,159 +490,170 @@ export class Game {
         // 入力処理はInputManagerで行う
     }
 
-    handlePlayerAction(action) {
+    async handlePlayerAction(action) {
         if (this.state !== 'playing') return;
+        if (this.isProcessing) return; // 処理中は入力を受け付けない
 
-        // プレイヤーの行動開始時に、前のターンのメッセージをアーカイブ(グレーにする)
-        // これにより、今回のターンで発生する一連のメッセージは全て白文字になる
-        this.display.archiveMessages();
+        this.isProcessing = true;
+        try {
+            // プレイヤーの行動開始時に、前のターンのメッセージをアーカイブ(グレーにする)
+            // これにより、今回のターンで発生する一連のメッセージは全て白文字になる
+            this.display.archiveMessages();
 
-        let actionTaken = false;
+            let actionTaken = false;
 
-        switch (action.type) {
-            case 'move':
-                actionTaken = this.movePlayer(action.dx, action.dy);
-                break;
-            case 'rest':
-                // 休憩 (move.c rest()) - その場で待機してHP回復
-                actionTaken = true;
-                break;
-            case 'rest_and_search':
-                // 休憩 + 探索 (Aボタン用統合アクション)
-                // 移動せずに休憩し、ついでに探索も行う (便利な独自機能)
-                console.log('🔍 rest_and_search action triggered');
-                this.search();
-                console.log('✅ search completed, setting actionTaken = true');
-                actionTaken = true; // ターンを進める
-                break;
-            case 'search':
-                // 探索 (trap.c search()) - 隠し扉・罠を探す
-                this.search();
-                actionTaken = true; // ターンを進める
-                break;
-            case 'dash':
-                // ダッシュ: 連続移動 (move.c multiple_move_rogue())
-                if (action.dx !== undefined && action.dy !== undefined) {
-                    this.dashPlayer(action.dx, action.dy);
-                    return; // dashPlayer内でprocessTurnを呼ぶ
-                }
-                break;
-            case 'use':
-                actionTaken = this.useItem(action.index);
-                break;
-            case 'menu':
-                this.openInventory();
-                return;
-            case 'inventory':
-                this.showInventory();
-                return;
-            case 'stairs':
-                if (this.level.getTile(this.player.x, this.player.y) === '%') {
-                    // オリジナルRogue準拠: 浮遊中は階段を降りられない (level.c drop_check line 698-701)
-                    if (this.player.status.levitate > 0) {
-                        this.display.showMessage('浮遊しているので階段を降りられない。');
-                        return;
+            switch (action.type) {
+                case 'move':
+                    actionTaken = await this.movePlayer(action.dx, action.dy);
+                    break;
+                case 'rest':
+                    // 休憩 (move.c rest()) - その場で待機してHP回復
+                    actionTaken = true;
+                    break;
+                case 'rest_and_search':
+                    // 休憩 + 探索 (Aボタン用統合アクション)
+                    // 移動せずに休憩し、ついでに探索も行う (便利な独自機能)
+                    console.log('🔍 rest_and_search action triggered');
+                    this.search();
+                    console.log('✅ search completed, setting actionTaken = true');
+                    actionTaken = true; // ターンを進める
+                    break;
+                case 'search':
+                    // 探索 (trap.c search()) - 隠し扉・罠を探す
+                    this.search();
+                    actionTaken = true; // ターンを進める
+                    break;
+                case 'dash':
+                    // ダッシュ: 連続移動 (move.c multiple_move_rogue())
+                    if (action.dx !== undefined && action.dy !== undefined) {
+                        this.dashPlayer(action.dx, action.dy);
+                        return; // dashPlayer内でprocessTurnを呼ぶ
                     }
-
-                    let goUp = false;
-                    let goDown = false;
-
-                    if (action.direction === 'up') goUp = true;
-                    else if (action.direction === 'down') goDown = true;
-                    else {
-                        // 自動判別: 魔除けがあれば上る
-                        if (this.player.inventory.some(item => item.id === 'amulet')) {
-                            goUp = true;
-                        } else {
-                            goDown = true;
+                    break;
+                case 'use':
+                    actionTaken = this.useItem(action.index);
+                    break;
+                case 'menu':
+                    this.openInventory();
+                    return;
+                case 'inventory':
+                    this.showInventory();
+                    return;
+                case 'stairs':
+                    if (this.level.getTile(this.player.x, this.player.y) === '%') {
+                        // オリジナルRogue準拠: 浮遊中は階段を降りられない (level.c drop_check line 698-701)
+                        if (this.player.status.levitate > 0) {
+                            this.display.showMessage('浮遊しているので階段を降りられない。');
+                            return;
                         }
-                    }
 
-                    if (goUp) {
-                        // イェンダーの魔除けチェック
-                        if (this.player.inventory.some(item => item.id === 'amulet')) {
-                            this.currentFloor--;
+                        let goUp = false;
+                        let goDown = false;
 
-                            if (this.currentFloor <= 0) {
-                                this.gameClear();
-                                return;
+                        if (action.direction === 'up') goUp = true;
+                        else if (action.direction === 'down') goDown = true;
+                        else {
+                            // 自動判別: 魔除けがあれば上る
+                            if (this.player.inventory.some(item => item.id === 'amulet')) {
+                                goUp = true;
+                            } else {
+                                goDown = true;
                             }
+                        }
 
-                            this.display.showMessage(`${this.currentFloor}階に上った。`);
+                        if (goUp) {
+                            // イェンダーの魔除けチェック
+                            if (this.player.inventory.some(item => item.id === 'amulet')) {
+                                this.currentFloor--;
 
-                            // 階層移動時のステータスリセット
-                            this.player.status.detectMonster = 0;
-                            this.player.status.detectObjects = 0;
-                            this.player.status.seeInvisible = false;
-                            this.player.status.held = false;
-                            this.player.status.bearTrap = 0;
+                                if (this.currentFloor <= 0) {
+                                    this.gameClear();
+                                    return;
+                                }
 
-                            this.generateFloor();
-                            if (this.inGameDebugMode) {
-                                this.level.revealAll();
+                                this.display.showMessage(`${this.currentFloor}階に上った。`);
+
+                                // 階層移動時のステータスリセット
+                                this.player.status.detectMonster = 0;
+                                this.player.status.detectObjects = 0;
+                                this.player.status.seeInvisible = false;
+                                this.player.status.held = false;
+                                this.player.status.bearTrap = 0;
+
+                                this.generateFloor();
+                                if (this.inGameDebugMode) {
+                                    this.level.revealAll();
+                                }
+                                this.updateDisplay();
+                            } else {
+                                this.display.showMessage("上れません。");
                             }
-                            this.updateDisplay();
                         } else {
-                            this.display.showMessage("上れません。");
+                            this.nextLevel();
                         }
                     } else {
-                        this.nextLevel();
+                        this.display.showMessage('ここには階段がない。');
                     }
-                } else {
-                    this.display.showMessage('ここには階段がない。');
-                }
-                return;
-            case 'debug_ascend':
-                this.currentFloor--;
-                if (this.currentFloor <= 0) {
-                    this.gameClear();
                     return;
-                }
-                this.display.showMessage(`${this.currentFloor}階へワープした。(Debug)`);
-                // 階層移動時のステータスリセット
-                this.player.status.detectMonster = 0;
-                this.player.status.detectObjects = 0;
-                this.player.status.seeInvisible = false;
-                this.player.status.held = false;
-                this.player.status.bearTrap = 0;
+                case 'debug_ascend':
+                    this.currentFloor--;
+                    if (this.currentFloor <= 0) {
+                        this.gameClear();
+                        return;
+                    }
+                    this.display.showMessage(`${this.currentFloor}階へワープした。(Debug)`);
+                    // 階層移動時のステータスリセット
+                    this.player.status.detectMonster = 0;
+                    this.player.status.detectObjects = 0;
+                    this.player.status.seeInvisible = false;
+                    this.player.status.held = false;
+                    this.player.status.bearTrap = 0;
 
-                this.generateFloor();
-                if (this.inGameDebugMode) {
-                    this.level.revealAll();
-                }
-                this.updateDisplay();
-                return;
-            case 'debug_descend':
-                this.nextLevel();
-                return;
-            case 'debug':
-                // ゲーム中デバッグモード切り替え
-                this.inGameDebugMode = !this.inGameDebugMode;
-                if (this.inGameDebugMode) {
-                    this.level.revealAll(); // 全体を表示
-                    this.display.showMessage('🐛 デバッグモード: ON (壁判定無効、全体表示)');
-                } else {
-                    this.display.showMessage('デバッグモード: OFF');
-                }
-                this.display.toggleDebugMode();
-                this.updateDisplay();
-                return;
-        }
+                    this.generateFloor();
+                    if (this.inGameDebugMode) {
+                        this.level.revealAll();
+                    }
+                    this.updateDisplay();
+                    return;
+                case 'debug_descend':
+                    this.nextLevel();
+                    return;
+                case 'debug':
+                    // ゲーム中デバッグモード切り替え
+                    this.inGameDebugMode = !this.inGameDebugMode;
+                    if (this.inGameDebugMode) {
+                        this.level.revealAll(); // 全体を表示
+                        this.display.showMessage('🐛 デバッグモード: ON (壁判定無効、全体表示)');
+                    } else {
+                        this.display.showMessage('デバッグモード: OFF');
+                    }
+                    this.display.toggleDebugMode();
+                    this.updateDisplay();
+                    return;
+            }
 
-        if (actionTaken) {
-            // 加速時の処理 (use.c haste_self)
-            // 加速中は2回行動できる = モンスターが1回行動する間にプレイヤーが2回行動
-            // 実装方法: 奇数ターンはモンスター行動なし
-            const isFast = this.player.status && this.player.status.fast > 0;
-            this.processTurn(isFast);
+            if (actionTaken) {
+                // 加速時の処理 (use.c haste_self)
+                // 加速中は2回行動できる = モンスターが1回行動する間にプレイヤーが2回行動
+                // 実装方法: 奇数ターンはモンスター行動なし
+                const isFast = this.player.status && this.player.status.fast > 0;
+                await this.processTurn(isFast);
+            }
+        } finally {
+            this.isProcessing = false;
         }
     }
 
+    wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     // move.c one_move_rogue
-    movePlayer(dx, dy, pickup = true) {
+    async movePlayer(dx, dy, pickup = true) {
         // 睡眠・凍結チェック
         if (this.player.status.sleep > 0) {
             this.display.showMessage('動けない！');
+            await this.wait(200); // メッセージを読ませるためのウェイト
             return true; // ターン経過させる（麻痺中も時間は進む）
         }
 
@@ -736,7 +749,9 @@ export class Game {
 
         // 6. 罠判定 (trap_player)
         // 罠があれば発動。隠し罠なら表示される。
-        this.trapManager.trapPlayer(newY, newX);
+        // 発動前に一度描画更新して、プレイヤーが罠の上に移動したことを視覚的に反映させる
+        this.updateDisplay();
+        await this.trapManager.trapPlayer(newY, newX);
 
         // 7. 部屋の更新 (move.c line 104-117)
         const oldTile = this.level.getTile(oldX, oldY);
@@ -809,7 +824,7 @@ export class Game {
         for (let i = 0; i < maxSteps; i++) {
             // 1. 移動を試みる (one_move_rogue)
             // ダッシュ時は拾わない (pickup=false)
-            let moved = this.movePlayer(dx, dy, false);
+            let moved = await this.movePlayer(dx, dy, false);
 
             // 2. 移動失敗時: 通路の曲がり角チェック (bent_passage logic)
             // #if !defined( ORIGINAL ) int multiple_move_rogue(...)
@@ -821,7 +836,7 @@ export class Game {
                     if (newDir) {
                         dx = newDir.x;
                         dy = newDir.y;
-                        moved = this.movePlayer(dx, dy, false); // 新しい方向へ移動(拾わない)
+                        moved = await this.movePlayer(dx, dy, false); // 新しい方向へ移動(拾わない)
                     }
                 }
             }
@@ -1082,6 +1097,11 @@ export class Game {
 
     async processTurn(skipMonsters = false) {
         this.turnCount++;
+
+        // 罠のターン経過処理 (熊の罠解除など)
+        if (this.trapManager) {
+            this.trapManager.processTurn();
+        }
 
         // 加速時はモンスターの行動をスキップ (use.c haste_self)
         if (!skipMonsters) {
