@@ -220,13 +220,7 @@ Mon:${nearbyMonsters}`;
         // 既存のメッセージアイテムを取得
         const items = Array.from(this.messageLog.children);
 
-        // 直前のメッセージと同じ場合はスキップ（連続重複防止）
-        if (items.length > 0) {
-            const lastMessage = items[items.length - 1].textContent;
-            if (lastMessage === message) {
-                return;
-            }
-        }
+
 
         // 新しいメッセージを追加
         const newItem = document.createElement('li');
