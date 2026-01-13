@@ -2658,7 +2658,7 @@ export class Game {
                 // レベルボーナス
                 damage += Math.floor((this.player.level + 1) / 2);
 
-                message = Mesg[23].replace('%s', defender.name) + `(${damage}ダメージ)`;
+                message = `${defender.name}に命中した。(${damage}ダメージ)`;
                 defender.takeDamage(damage);
 
                 if (defender.isDead()) {

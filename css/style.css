@@ -214,7 +214,8 @@ body {
 
 /* ダンジョン要素の色分け */
 .wall {
-    color: var(--wall-color);
+    color: #000000;
+    background-color: var(--wall-color);
     font-weight: bold;
 }
 
