@@ -1630,15 +1630,20 @@ export class Game {
     // combatメソッドは廃止(resolveAttackに統合)
 
     // 探索 (search.c do_search)
+    // 探索 (search.c do_search)
     search() {
-        // 隠し扉探索
-        const messages = this.level.search(this.player.x, this.player.y);
-        for (const msg of messages) {
-            this.display.showMessage(msg);
-        }
+        // オリジナルRogue仕様: sコマンド1回につき、2回探索判定を行う
+        // これにより、実質的に半分のターンで探索できる（休息しつつ探索）
+        for (let i = 0; i < 2; i++) {
+            // 隠し扉探索
+            const messages = this.level.search(this.player.x, this.player.y);
+            for (const msg of messages) {
+                this.display.showMessage(msg);
+            }
 
-        // 罠探索
-        this.trapManager.search(1, false);
+            // 罠探索
+            this.trapManager.search(1, false);
+        }
 
         // ターン経過は呼び出し元(handlePlayerAction)で行うため削除
         // this.processTurn();
