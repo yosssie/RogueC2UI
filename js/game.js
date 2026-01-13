@@ -52,9 +52,9 @@ export class Game {
         this.turnCount = 0;
 
         // モンスターハウス (Party Room) 関連
-        // party_counter: 次にParty Roomが発生する階層
-        // オリジナルは PARTY_TIME(10) 以内のランダムな階層で発生
-        this.partyCounter = Math.floor(Math.random() * 10) + 1;
+        // オリジナルRogue: next_party() ロジック
+        // 10階ごとのブロック（11-20, 21-30...）内でランダムに1回発生
+        this.partyCounter = this.nextParty(1);
         this.partyRoom = -1; // 現在の階層のParty Room ID (-1: なし)
         this.debugMode = false; // デバッグモードフラグ（タイトル画面用）
         this.inGameDebugMode = false; // ゲーム中のデバッグモード
@@ -222,21 +222,23 @@ export class Game {
         // 初期視界を設定
         this.level.updateVisibility(this.player.x, this.player.y);
 
-        // --- Party Room (Monster House) ---
-        // Party Room がある階でも、通常のモンスター・アイテム生成は行われる (追加で配置される)
-        this.partyRoom = -1;
-        if (!this.debugMode && this.currentFloor === this.partyCounter) {
-            console.log(`🎉 Party time at floor ${this.currentFloor}`);
-            this.makeParty(this.level);
-            // 次回は 1-10 階層後 (next_party)
-            this.partyCounter += Math.floor(Math.random() * 10) + 1;
-        }
-
         // モンスター配置
         this.spawnMonsters();
 
         // アイテム配置
         this.spawnItems();
+
+        // --- Party Room (Monster House) ---
+        // spawnMonsters/spawnItemsの後に呼ぶ（配列がクリアされた後に追加）
+        // Party Room がある階でも、通常のモンスター・アイテム生成は行われる (追加で配置される)
+        this.partyRoom = -1;
+        if (!this.debugMode && this.currentFloor === this.partyCounter) {
+            console.log(`🎉 Party time at floor ${this.currentFloor}`);
+            this.makeParty(this.level);
+            // 次回発生階層を計算
+            this.partyCounter = this.nextParty(this.currentFloor);
+            console.log(`🎯 Next party scheduled at floor ${this.partyCounter}`);
+        }
 
         // デバッグモード追加アイテム
         if (this.debugMode) {
@@ -664,36 +666,76 @@ export class Game {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    // オリジナルRogue: next_party() の実装
+    nextParty(currentLevel) {
+        const PARTY_TIME = 10;
+        let n = currentLevel;
+
+        // n を PARTY_TIME の倍数に切り上げ
+        while (n % PARTY_TIME !== 0) {
+            n++;
+        }
+
+        // (n + 1) から (n + PARTY_TIME) の間でランダム
+        return Math.floor(Math.random() * PARTY_TIME) + n + 1;
+    }
+
     // --- Party Room (Monster House) Logic ---
 
     makeParty(level) {
-        // 部屋の中からランダムに1つ選ぶ (迷路は除外したいが、今の部屋構造だと単純にroomsから選ぶ)
-        const roomIndex = Math.floor(Math.random() * level.rooms.length);
-        this.partyRoom = roomIndex;
-        const room = level.rooms[roomIndex];
+        console.log('🎪 [Party Room] Starting party room generation...');
+        console.log('🎪 [Party Room] Total rooms:', level.rooms.length);
+
+        // オリジナル: gr_room() - R_ROOM | R_MAZE (0x06) のいずれかの部屋を選ぶ
+        // R_ROOM = 0x02, R_MAZE = 0x04
+        const validRooms = level.rooms.filter(r => r.is_room & 0x06);
+
+        console.log('🎪 [Party Room] Valid rooms:', validRooms.length);
+        console.log('🎪 [Party Room] Valid room flags:', validRooms.map(r => r.is_room.toString(16)));
+
+        if (validRooms.length === 0) {
+            console.warn('🎪 [Party Room] No valid rooms found!');
+            return;
+        }
+
+        const room = validRooms[Math.floor(Math.random() * validRooms.length)];
+        // partyRoomにはindexではなく部屋オブジェクトそのものを持たせるか、
+        // あるいはlevel.rooms内のインデックスを特定する必要がある。
+        // ここではインデックスを特定して保持する。
+        this.partyRoom = level.rooms.indexOf(room);
+
+        console.log('🎪 [Party Room] Selected room index:', this.partyRoom);
+        console.log('🎪 [Party Room] Room bounds:', {
+            left: room.left_col,
+            right: room.right_col,
+            top: room.top_row,
+            bottom: room.bottom_row,
+            is_room: room.is_room.toString(16)
+        });
 
         // アイテム配置 (アイテム数nを返す)
-        // オリジナル: rand_percent(99) ? party_objects(party_room) : 11;
-        // 99%の確率で party_objects を呼ぶ。
         let n = 11;
         if (Math.random() < 0.99) {
             n = this.partyObjects(level, room);
         }
 
         // モンスター配置
-        // オリジナル: if (rand_percent(99)) party_monsters(party_room, n);
         if (Math.random() < 0.99) {
             this.partyMonsters(level, room, n);
         }
+
+        console.log('🎪 [Party Room] Generation complete!');
     }
 
     partyObjects(level, room) {
-        // n = get_rand(5, 10);
+        // オリジナル: n = get_rand(5, 10)
         let n = Math.floor(Math.random() * 6) + 5;
         // オリジナル: if (rand_percent(50)) n += get_rand(5, 10);
         if (Math.random() < 0.5) {
             n += Math.floor(Math.random() * 6) + 5;
         }
+
+        console.log(`🎁 [Party Objects] Placing ${n} items...`);
 
         // 部屋の範囲 (壁の内側)
         const minX = room.left_col + 1;
@@ -703,31 +745,61 @@ export class Game {
         const width = maxX - minX + 1;
         const height = maxY - minY + 1;
 
-        if (width <= 0 || height <= 0) return 0; // 安全策
+        // オリジナル: N = ((bottom - top) - 1) * ((right - left) - 1)
+        // = 部屋の内側のマス数
+        const N = width * height;
+
+        // オリジナル: if (n > N) n = N - 2;
+        if (n > N) {
+            n = N - 2;
+            console.log(`🎁 [Party Objects] Adjusted item count to ${n} (room size: ${N})`);
+        }
+
+        console.log(`🎁 [Party Objects] Inner room bounds: x[${minX}..${maxX}] y[${minY}..${maxY}] (${width}x${height})`);
+
+        if (width <= 0 || height <= 0) {
+            console.warn('🎁 [Party Objects] Invalid room dimensions!');
+            return 0;
+        }
+
+        let itemsPlaced = 0;
 
         // アイテム配置
         for (let i = 0; i < n; i++) {
-            // アイテム生成 (種類はランダム)
-            const item = this.level.getRandomItem(this.currentFloor);
+            // アイテムタイプをランダム決定 (spawnItemsと同じロジック)
+            // object.c gr_what_is: scroll 30, potion 30, wand 4, weapon 10, armor 9, food 5, ring 3
+            const rand = Math.floor(Math.random() * 91);
+            let type;
+            if (rand < 30) type = '?';      // 巻物 30
+            else if (rand < 60) type = '!'; // 薬 30
+            else if (rand < 64) type = '/'; // 杖 4
+            else if (rand < 74) type = ')'; // 武器 10
+            else if (rand < 83) type = ']'; // 防具 9
+            else if (rand < 88) type = ':'; // 食料 5
+            else type = '=';                // 指輪 3
 
-            // 部屋内のランダムな位置
-            // 完全に埋まってるかチェックするのは大変なので、適当な回数トライ
-            for (let j = 0; j < 25; j++) {
+            let placed = false;
+            for (let j = 0; j < 250; j++) { // オリジナルと同じ試行回数
                 const r = Math.floor(Math.random() * height) + minY;
                 const c = Math.floor(Math.random() * width) + minX;
 
-                if (level.isFloor(c, r) && !level.isTunnel(c, r)) {
-                    // 既にアイテムがあるかチェックは getRandomItem -> placeItem で行われるべきだが
-                    // ここでは手動で座標設定して push する
-                    item.x = c;
-                    item.y = r;
-                    // 重なりチェックは省略（オリジナルも上書きするかも？）
-                    // 一応オブジェクトリストに追加
+                // spawnItemsと同じ判定を使用
+                if (level.isWalkable(c, r) && level.getTile(c, r) !== '+' && !this.isPositionOccupied(c, r)) {
+                    const item = new Item(type, c, r);
                     this.items.push(item);
+                    itemsPlaced++;
+                    placed = true;
+                    console.log(`🎁 [Party Objects] Item ${i + 1} placed at (${c}, ${r}), type: ${type}`);
                     break;
                 }
             }
+
+            if (!placed) {
+                console.warn(`🎁 [Party Objects] Failed to place item ${i + 1} after 250 attempts`);
+            }
         }
+
+        console.log(`🎁 [Party Objects] Placed ${itemsPlaced}/${n} items`);
         return n;
     }
 
@@ -735,6 +807,7 @@ export class Game {
         // n += n; (アイテム数の2倍？ オリジナルコード: n += n;)
         // モンスター数はアイテム数より多くなる傾向
         const numMonsters = n + n;
+        console.log(`👹 [Party Monsters] Placing ${numMonsters} monsters...`);
 
         // モンスターレベル調整 (オリジナルは一時的にレベル変動させるが、ここではそのまま実装)
         // mon_tab[i].first_level -= (cur_level % 3);
@@ -747,35 +820,72 @@ export class Game {
         const width = maxX - minX + 1;
         const height = maxY - minY + 1;
 
-        if (width <= 0 || height <= 0) return; // 安全策
+        console.log(`👹 [Party Monsters] Inner room bounds: x[${minX}..${maxX}] y[${minY}..${maxY}] (${width}x${height})`);
+
+        if (width <= 0 || height <= 0) {
+            console.warn('👹 [Party Monsters] Invalid room dimensions!');
+            return; // 安全策
+        }
+
+        let monstersPlaced = 0;
 
         for (let i = 0; i < numMonsters; i++) {
-            // 部屋がいっぱいなら終了 (簡易チェック)
-            // ...
+            // オリジナル: no_room_for_monster(rn) - 部屋がいっぱいなら終了
+            // 部屋の壁の内側に空きマスがあるかチェック
+            let hasEmptySpace = false;
+            for (let r = minY; r <= maxY && !hasEmptySpace; r++) {
+                for (let c = minX; c <= maxX && !hasEmptySpace; c++) {
+                    if (level.isWalkable(c, r) &&
+                        !this.monsters.some(m => m.x === c && m.y === r) &&
+                        !(this.player.x === c && this.player.y === r)) {
+                        hasEmptySpace = true;
+                    }
+                }
+            }
+            if (!hasEmptySpace) {
+                console.log(`👹 [Party Monsters] Room is full, stopping at ${i} monsters`);
+                break;
+            }
 
             let placed = false;
-            for (let j = 0; j < 250 && !placed; j++) {
+            for (let j = 0; j < 250 && !placed; j++) { // オリジナルと同じ試行回数
                 const r = Math.floor(Math.random() * height) + minY;
                 const c = Math.floor(Math.random() * width) + minX;
 
-                // モンスターがいない、壁でない、など
-                if (level.isFloor(c, r) &&
+                // spawnMonstersと同じ判定を使用
+                if (level.isWalkable(c, r) &&
+                    level.getTile(c, r) !== '+' &&
                     !this.monsters.some(m => m.x === c && m.y === r) &&
                     !(this.player.x === c && this.player.y === r)) {
 
-                    const monster = Monster.getRandomMonster(this.currentFloor);
-                    // WAKENS フラグを付与 (部屋に入ったら起きる)
-                    monster.setFlag(Monster.WAKENS);
-                    // IMITATES (擬態) でないなら、さらに起きやすくする？
-                    // オリジナル: if (!(monster->m_flags & IMITATES)) monster->m_flags |= WAKENS;
+                    // この階層に出現可能なモンスター候補を取得（spawnMonstersと同じロジック）
+                    const candidates = [];
+                    for (const [key, def] of Object.entries(Monster.definitions)) {
+                        if (this.currentFloor >= def.minLevel && this.currentFloor <= def.maxLevel) {
+                            candidates.push(key);
+                        }
+                    }
+                    if (candidates.length === 0) candidates.push('B');
 
-                    monster.x = c;
-                    monster.y = r;
+                    const type = candidates[Math.floor(Math.random() * candidates.length)];
+                    const monster = new Monster(type, c, r);
+
+                    // WAKENS フラグを付与 (部屋に入ったら起きる)
+                    monster.flags |= Monster.FLAGS.WAKENS;
+
                     this.monsters.push(monster);
+                    monstersPlaced++;
                     placed = true;
+                    console.log(`👹 [Party Monsters] Monster ${i + 1} (${type}) placed at (${c}, ${r})`);
                 }
             }
+
+            if (!placed) {
+                console.warn(`👹 [Party Monsters] Failed to place monster ${i + 1} after 250 attempts`);
+            }
         }
+
+        console.log(`👹 [Party Monsters] Placed ${monstersPlaced}/${numMonsters} monsters`);
     }
 
     // move.c one_move_rogue
