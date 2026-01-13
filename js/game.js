@@ -318,13 +318,16 @@ export class Game {
 
                 if (this.level.isWalkable(x, y) && this.level.getTile(x, y) !== '+' && !this.isPositionOccupied(x, y)) {
                     const type = candidates[Math.floor(Math.random() * candidates.length)];
-                    this.monsters.push(new Monster(type, x, y));
-                    spawnedCount++;
+                    const monster = new Monster(type, x, y);
 
-                    // オリジナルでは2分の1の確率で起きている状態で生成されることがある
-                    // object.c put_mons: if ((monster->m_flags & WANDERS) && coin_toss()) wake_up(monster);
-                    // 簡易実装として、デフォルトはASLEEPだが、ここで起きる判定を入れても良い
-                    // 現状はMonsterクラスのコンストラクタでASLEEP | WANDERSなどが設定される想定
+                    // オリジナルRogue準拠: WANDERSフラグ持ちは50%の確率で最初から起きている
+                    // object.c put_mons line 87-89: if ((monster->m_flags & WANDERS) && coin_toss()) wake_up(monster);
+                    if (monster.hasFlag(Monster.FLAGS.WANDERS) && Math.random() < 0.5) {
+                        monster.removeFlag(Monster.FLAGS.ASLEEP);
+                    }
+
+                    this.monsters.push(monster);
+                    spawnedCount++;
                 }
             }
         }
@@ -1040,9 +1043,8 @@ export class Game {
                 }
 
                 // 寝ているモンスターを起こす判定 (WAKENS flag)
-                // オリジナル仕様: 部屋に入った時(entering=true) かつ 確率判定
-                // 部屋から出ていく時(entering=false)は起こさない（既に起きているなら追ってくる）
-                if (entering && m.hasFlag(Monster.FLAGS.WAKENS) && m.hasFlag(Monster.FLAGS.ASLEEP)) {
+                // オリジナル仕様: entering に関係なく常に起床判定
+                if (m.hasFlag(Monster.FLAGS.WAKENS) && m.hasFlag(Monster.FLAGS.ASLEEP)) {
                     // Party Room判定
                     // オリジナル: wake_percent = (rn == party_room) ? PARTY_WAKE_PERCENT(75) : WAKE_PERCENT(45);
                     const isPartyRoom = this.partyRoom !== -1 && this.level.rooms.indexOf(room) === this.partyRoom;
