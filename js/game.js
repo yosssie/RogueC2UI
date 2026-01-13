@@ -2658,7 +2658,8 @@ export class Game {
                 // レベルボーナス
                 damage += Math.floor((this.player.level + 1) / 2);
 
-                message = `${defender.name}に命中した。(${damage}ダメージ)`;
+                // プレイヤー攻撃: 主語を「あなた」に統一してMesg[23]を使用
+                message = Mesg[23].replace('%s', 'あなた') + `(${damage}ダメージ)`;
                 defender.takeDamage(damage);
 
                 if (defender.isDead()) {
