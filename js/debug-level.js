@@ -182,4 +182,10 @@ export class DebugLevel extends Level {
             }
         }
     }
+
+    // デバッグレベルでは隠しドア・隠し通路がないため、searchは何も見つけない
+    search(x, y) {
+        // デバッグレベルには隠しオブジェクトがないので空配列を返す
+        return [];
+    }
 }

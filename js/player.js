@@ -266,6 +266,8 @@ export class Player {
         if (item.type === 'weapon') {
             this.weapon = item;
         } else if (item.type === 'armor') {
+            // オリジナルRogue準拠: 防具は着た瞬間に識別される (pack.c wear/do_wear)
+            item.identified = true;
             this.equippedArmor = item;
             this.updateStats();
         }
@@ -280,7 +282,14 @@ export class Player {
     }
 
     updateStats() {
-        this.armor = this.equippedArmor ? (this.equippedArmor.value || 0) : 0; // 素っ裸は0 (Rogueでは10-ACだが、ここでは防御力として扱う)
+        // オリジナルRogue準拠: AC = 基本AC + エンチャント値 (invent.c get_armor_class)
+        if (this.equippedArmor) {
+            const baseAC = this.equippedArmor.value || 0;
+            const enchant = this.equippedArmor.damageBonus || 0;
+            this.armor = baseAC + enchant;
+        } else {
+            this.armor = 0; // 素っ裸は0
+        }
     }
 
     canSeeInvisible() {

@@ -17,9 +17,8 @@ export class SpecialHit {
             this.rust(game, monster);
         }
         if (monster.hasFlag(Monster.FLAGS.HOLDS)) {
-            // 本来はlevitateしていれば無効
-            // ホールド状態にする (Gameクラスで移動制限が必要)
-            if (!game.player.held) {
+            // オリジナルRogue準拠: 浮遊中は拘束されない (spechit.c line 53)
+            if (!game.player.status.levitate && !game.player.held) {
                 game.display.showMessage(`${monster.name}に締め上げられた！`);
                 game.player.held = true;
             }
@@ -61,12 +60,11 @@ export class SpecialHit {
             return;
         }
 
+        // オリジナルRogue準拠: 錆びはエンチャント値(d_enchant)を減らす (spechit.c rust line 88)
         if (!armor.protected) {
-            if (armor.value > 0) {
-                game.display.showMessage(Mesg[202]);
-                armor.value--;
-                game.player.updateStats();
-            }
+            game.display.showMessage(Mesg[202]);
+            armor.damageBonus--;
+            game.player.updateStats();
         }
     }
 

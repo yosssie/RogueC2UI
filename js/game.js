@@ -508,7 +508,9 @@ export class Game {
             case 'rest_and_search':
                 // 休憩 + 探索 (Aボタン用統合アクション)
                 // 移動せずに休憩し、ついでに探索も行う (便利な独自機能)
+                console.log('🔍 rest_and_search action triggered');
                 this.search();
+                console.log('✅ search completed, setting actionTaken = true');
                 actionTaken = true; // ターンを進める
                 break;
             case 'search':
@@ -534,6 +536,12 @@ export class Game {
                 return;
             case 'stairs':
                 if (this.level.getTile(this.player.x, this.player.y) === '%') {
+                    // オリジナルRogue準拠: 浮遊中は階段を降りられない (level.c drop_check line 698-701)
+                    if (this.player.status.levitate > 0) {
+                        this.display.showMessage('浮遊しているので階段を降りられない。');
+                        return;
+                    }
+
                     let goUp = false;
                     let goDown = false;
 
@@ -699,6 +707,12 @@ export class Game {
         if (pickup) {
             const item = this.items.find(i => i.x === newX && i.y === newY);
             if (item) {
+                // オリジナルRogue準拠: 浮遊中はアイテムを拾えない (move.c line 131-134)
+                if (this.player.status.levitate > 0) {
+                    this.display.showMessage('浮遊しているのでアイテムを拾えない。');
+                    return true; // ターン消費 (STOPPED_ON_SOMETHING)
+                }
+
                 // SCARE_MONSTER特殊処理 (pack.c pick_up line 86-95)
                 if (item.id === 'scroll_scare_monster' && item.picked_up) {
                     // 一度拾ったSCARE_MONSTERを再度拾おうとすると消滅
@@ -707,7 +721,6 @@ export class Game {
                     return true; // ターン消費
                 }
 
-                // 浮遊チェックがあればここでスキップ
                 if (this.player.addItem(item)) {
                     // アイテムを拾った時にpicked_upフラグを立てる
                     item.picked_up = true;
@@ -2333,17 +2346,22 @@ export class Game {
             // STR補正 (簡易: 14以上で+1ずつ)
             if (this.player.str > 14) hitChance += (this.player.str - 14) * 3;
 
-            // 武器補正
+            // 武器補正 (オリジナルRogue準拠: hitBonus = 命中補正)
             if (this.player.weapon) {
-                hitChance += (this.player.weapon.plusValue || 0) * 3;
+                hitChance += (this.player.weapon.hitBonus || 0) * 3;
             }
+
+            // 器用さの指輪補正 (オリジナルRogue準拠: ring.c ring_stats)
+            const dexBonus = this.ringManager.getExpBonus();
+            hitChance += dexBonus * 3;
 
             // 2. 命中判定
             if (Math.random() * 100 < hitChance) {
                 // 3. ダメージ計算 (get_weapon_damage + damage_for_strength)
                 if (this.player.weapon) {
                     damage = this.parseDice(this.player.weapon.value || '1d4');
-                    damage += (this.player.weapon.plusValue || 0); // +Modifier
+                    // オリジナルRogue準拠: damageBonus = ダメージ補正
+                    damage += (this.player.weapon.damageBonus || 0);
                 } else {
                     damage = this.parseDice('1d4'); // 素手
                 }

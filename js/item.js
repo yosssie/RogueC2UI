@@ -294,7 +294,7 @@ export class Item {
 
     getDisplayName() {
         if (this.id === 'gold') {
-            // 金貨は特別扱い（identifiedフラグに関係なく額面表示）
+            // 金貨は特別扱い(identifiedフラグに関係なく額面表示)
             return `${this.value}枚の${this.realName}`;
         }
 
@@ -303,30 +303,29 @@ export class Item {
             name = Item.mapping[this.id] || this.realName;
         }
 
-        // エンチャント値の表示（識別済みの場合のみ）
-        // エンチャント値の表示（識別済みの場合のみ）
+        // エンチャント値の表示
+        // オリジナルRogue準拠:
+        // - 武器: 識別されるまでエンチャント値不明 (invent.c get_desc)
+        // - 防具: 着た瞬間に識別されるため常に表示 (pack.c wear/do_wear)
         let enchantStr = '';
-        if (this.identified) {
-            if (this.type === 'weapon') {
-                // 武器: (+1, +2) 長い剣
-                // 両方0の場合は表示しない
-                if (this.hitBonus !== 0 || this.damageBonus !== 0) {
-                    const hit = this.hitBonus >= 0 ? `+${this.hitBonus}` : `${this.hitBonus}`;
-                    const dmg = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
-                    enchantStr = ` (${hit}, ${dmg})`;
-                }
-            } else if (this.type === 'armor') {
-                // 防具: (+2) 鋼鉄のよろい
-                // 0の場合は表示しない
-                if (this.damageBonus !== 0) {
-                    const enc = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
-                    enchantStr = ` (${enc})`;
-                }
-            } else if (this.type === 'ring' && this.enchantment !== undefined && this.enchantment !== 0) {
-                // 指輪: 筋力の指輪 (+2)
-                const enc = this.enchantment >= 0 ? `+${this.enchantment}` : `${this.enchantment}`;
+        if (this.type === 'weapon') {
+            // 武器: 識別済みの場合のみエンチャント値表示
+            if (this.identified && (this.hitBonus !== 0 || this.damageBonus !== 0)) {
+                const hit = this.hitBonus >= 0 ? `+${this.hitBonus}` : `${this.hitBonus}`;
+                const dmg = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
+                enchantStr = ` (${hit}, ${dmg})`;
+            }
+        } else if (this.type === 'armor') {
+            // 防具: 常にエンチャント値表示 (着た瞬間に識別されるため)
+            // 0の場合は表示しない
+            if (this.damageBonus !== 0) {
+                const enc = this.damageBonus >= 0 ? `+${this.damageBonus}` : `${this.damageBonus}`;
                 enchantStr = ` (${enc})`;
             }
+        } else if (this.type === 'ring' && this.identified && this.enchantment !== undefined && this.enchantment !== 0) {
+            // 指輪: 識別済みの場合のみエンチャント値表示
+            const enc = this.enchantment >= 0 ? `+${this.enchantment}` : `${this.enchantment}`;
+            enchantStr = ` (${enc})`;
         }
 
         // スタック表示
