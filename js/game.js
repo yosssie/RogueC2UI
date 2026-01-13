@@ -695,6 +695,16 @@ export class Game {
             n += Math.floor(Math.random() * 6) + 5;
         }
 
+        // 部屋の範囲 (壁の内側)
+        const minX = room.left_col + 1;
+        const maxX = room.right_col - 1;
+        const minY = room.top_row + 1;
+        const maxY = room.bottom_row - 1;
+        const width = maxX - minX + 1;
+        const height = maxY - minY + 1;
+
+        if (width <= 0 || height <= 0) return 0; // 安全策
+
         // アイテム配置
         for (let i = 0; i < n; i++) {
             // アイテム生成 (種類はランダム)
@@ -703,8 +713,8 @@ export class Game {
             // 部屋内のランダムな位置
             // 完全に埋まってるかチェックするのは大変なので、適当な回数トライ
             for (let j = 0; j < 25; j++) {
-                const r = Math.floor(Math.random() * room.height) + room.y;
-                const c = Math.floor(Math.random() * room.width) + room.x;
+                const r = Math.floor(Math.random() * height) + minY;
+                const c = Math.floor(Math.random() * width) + minX;
 
                 if (level.isFloor(c, r) && !level.isTunnel(c, r)) {
                     // 既にアイテムがあるかチェックは getRandomItem -> placeItem で行われるべきだが
@@ -729,14 +739,24 @@ export class Game {
         // モンスターレベル調整 (オリジナルは一時的にレベル変動させるが、ここではそのまま実装)
         // mon_tab[i].first_level -= (cur_level % 3);
 
+        // 部屋の範囲 (壁の内側)
+        const minX = room.left_col + 1;
+        const maxX = room.right_col - 1;
+        const minY = room.top_row + 1;
+        const maxY = room.bottom_row - 1;
+        const width = maxX - minX + 1;
+        const height = maxY - minY + 1;
+
+        if (width <= 0 || height <= 0) return; // 安全策
+
         for (let i = 0; i < numMonsters; i++) {
             // 部屋がいっぱいなら終了 (簡易チェック)
             // ...
 
             let placed = false;
             for (let j = 0; j < 250 && !placed; j++) {
-                const r = Math.floor(Math.random() * room.height) + room.y;
-                const c = Math.floor(Math.random() * room.width) + room.x;
+                const r = Math.floor(Math.random() * height) + minY;
+                const c = Math.floor(Math.random() * width) + minX;
 
                 // モンスターがいない、壁でない、など
                 if (level.isFloor(c, r) &&
