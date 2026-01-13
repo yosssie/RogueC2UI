@@ -632,13 +632,14 @@ export class Game {
                     return;
             }
 
-            if (actionTaken) {
+            if (actionTaken && !this.skipTurnProcessing) {
                 // 加速時の処理 (use.c haste_self)
                 // 加速中は2回行動できる = モンスターが1回行動する間にプレイヤーが2回行動
                 // 実装方法: 奇数ターンはモンスター行動なし
                 const isFast = this.player.status && this.player.status.fast > 0;
                 await this.processTurn(isFast);
             }
+            this.skipTurnProcessing = false; // リセット
         } finally {
             this.isProcessing = false;
         }

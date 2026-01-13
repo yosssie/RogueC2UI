@@ -193,6 +193,8 @@ export class TrapManager {
             if (this.game.player.hp <= 0) return;
         }
         this.game.display.showMessage('目が覚めた。');
+        // 既にターン経過処理を行ったので、呼び出し元のmovePlayerによるprocessTurnはスキップする
+        this.game.skipTurnProcessing = true;
     }
 
     // 錆び罠 (trap.c line 104-107)
