@@ -74,7 +74,7 @@ export class RingManager {
             }
             // 古い指輪を外す
             this.removeRing(hand);
-            this.game.display.showMessage(currentRing.name + Mesg[166]);
+            this.game.display.showMessage(currentRing.getDisplayName() + Mesg[166]);
         }
 
         // 呪われた指輪は外せない警告
@@ -87,7 +87,7 @@ export class RingManager {
         this.ringStats(true);
 
         const handName = hand === 'left' ? '左手' : '右手';
-        this.game.display.showMessage(`${ring.name}を${handName}に装備した。`);
+        this.game.display.showMessage(`${ring.getDisplayName()}を${handName}に装備した。`);
         return true;
     }
 
@@ -124,7 +124,7 @@ export class RingManager {
         this.unPutOn(ring);
 
         const handName = hand === 'left' ? '左手' : '右手';
-        this.game.display.showMessage(`${handName}の${ring.name}` + Mesg[166]);
+        this.game.display.showMessage(`${handName}の${ring.getDisplayName()}` + Mesg[166]);
         return true;
     }
 

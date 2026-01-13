@@ -46,26 +46,42 @@ export class SpecialHit {
         const armor = game.player.equippedArmor;
         if (!armor || armor.type !== 'armor') return;
 
-        // 防具維持の指輪チェック
-        if (game.ringManager && game.ringManager.hasMaintainArmor()) {
+        // オリジナルRogue準拠: AC計算 (object.c get_armor_class)
+        const currentAC = armor.value + armor.damageBonus;
+
+        // オリジナルRogue準拠: AC <= 1 なら錆びない (spechit.c rust line 78-80)
+        if (currentAC <= 1) {
             return;
         }
 
-        // 革の鎧(LEATHER)などは錆びない判定 (Rogue: a_class < 3 など、ここでは簡易的にIDで革チェック)
-        // または armor.value をACとして使っていて、低いほど良いRogueと違い、高いほど防御が高いなら
-        // 0以下にはならないようにする
-
-        // 簡易実装: IDに 'leather' が入っていたら錆びない
+        // 革の鎧(LEATHER)は錆びない (spechit.c rust line 79)
         if (armor.id.includes('leather')) {
             return;
         }
 
-        // オリジナルRogue準拠: 錆びはエンチャント値(d_enchant)を減らす (spechit.c rust line 88)
-        if (!armor.protected) {
-            game.display.showMessage(Mesg[202]);
-            armor.damageBonus--;
-            game.player.updateStats();
+        // 防具維持の指輪チェック (spechit.c rust line 82)
+        if (game.ringManager && game.ringManager.hasMaintainArmor()) {
+            // 防具保護されている場合はメッセージのみ (spechit.c rust line 84-85)
+            if (monster && !monster.rustVanished) {
+                game.display.showMessage(Mesg[201]); // "鎧が一瞬輝いた。"
+                monster.rustVanished = true;
+            }
+            return;
         }
+
+        // 防具保護の巻物チェック (spechit.c rust line 82)
+        if (armor.protected) {
+            if (monster && !monster.rustVanished) {
+                game.display.showMessage(Mesg[201]); // "鎧が一瞬輝いた。"
+                monster.rustVanished = true;
+            }
+            return;
+        }
+
+        // オリジナルRogue準拠: 錆びはエンチャント値(d_enchant)を減らす (spechit.c rust line 88)
+        game.display.showMessage(Mesg[202]); // "鎧が錆びた。"
+        armor.damageBonus--;
+        game.player.updateStats();
     }
 
     static freeze(game, monster) {

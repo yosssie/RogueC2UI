@@ -738,17 +738,25 @@ export class Game {
         // 罠があれば発動。隠し罠なら表示される。
         this.trapManager.trapPlayer(newY, newX);
 
-        // 7. 部屋の更新 (monster.c wake_room)
+        // 7. 部屋の更新 (move.c line 104-117)
+        const oldTile = this.level.getTile(oldX, oldY);
+        const newTile = this.level.getTile(newX, newY);
         const oldRoom = this.level.getRoomAt(oldX, oldY);
         const newRoom = this.level.getRoomAt(newX, newY);
 
-        if (newRoom && oldRoom !== newRoom) {
-            // 部屋に入った
-            this.wakeRoom(newRoom, true, newY, newX);
-        } else if (oldRoom && oldRoom !== newRoom) {
-            // 部屋から出た (通路へ)
-            // 最後にいた場所(oldX, oldY)をターゲットとしてセット
-            this.wakeRoom(oldRoom, false, oldY, oldX);
+        // オリジナルRogue準拠: ドアに入る (通路→部屋) (move.c line 104-108)
+        if (newTile === '+' && !oldRoom) {
+            // 通路からドアに入った → 部屋に入る
+            if (newRoom) {
+                this.wakeRoom(newRoom, true, newY, newX);
+            }
+        }
+        // オリジナルRogue準拠: ドアから出る (部屋→通路) (move.c line 112-117)
+        else if (oldTile === '+' && newTile === '#') {
+            // ドアから通路に出た → 部屋から出る
+            if (oldRoom) {
+                this.wakeRoom(oldRoom, false, oldY, oldX);
+            }
         }
 
         return true; // ターン消費 (MOVED or STOPPED_ON_SOMETHING)
@@ -944,8 +952,9 @@ export class Game {
                     return true;
                 }
 
-                // ドア: 隣接したら止まる (ただし来た道は無視)
-                if (isDoor && !isReverse) return true;
+                // ドア: 上下左右に隣接したら止まる (オリジナルRogue準拠: move.c line 360)
+                // 斜めは無視 ((i == 0) || (j == 0))
+                if (isDoor && !isReverse && (x === 0 || y === 0)) return true;
             }
         }
 

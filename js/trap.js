@@ -3,6 +3,7 @@
 // ===========================
 
 import { Mesg } from './mesg_J.js';
+import { SpecialHit } from './spechit.js';
 
 // 罠の種類定義 (rogue.h)
 export const TrapType = {
@@ -189,14 +190,11 @@ export class TrapManager {
         this.game.display.showMessage('目が覚めた。');
     }
 
-    // 錆び罠
+    // 錆び罠 (trap.c line 104-107)
     triggerRustTrap() {
-        this.game.display.showMessage(Mesg[227]);
-        // rust() - 装備している防具を錆びさせる
-        if (this.game.player.equippedArmor) {
-            // TODO: アイテムのエンチャント値実装後に追加
-            this.game.display.showMessage('防具が錆びた！');
-        }
+        this.game.display.showMessage(Mesg[227]); // "酸が降りかかった！"
+        // オリジナルRogue準拠: rust((object *) 0) を呼ぶ (trap.c line 106)
+        SpecialHit.rust(this.game, null);
     }
 
     // テレポート処理

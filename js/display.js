@@ -276,6 +276,9 @@ Mon:${nearbyMonsters}`;
                 let curseStr = ' ';
                 if (item.cursed && item.identified) {
                     curseStr = '!';
+                } else if (item.type === 'armor' && item.protected) {
+                    // 防具が保護されている場合は '*' を表示 (ユーザー要望)
+                    curseStr = '*';
                 }
 
                 // ステータス文字列構築: "XX Y"形式 (XX:装備, Y:呪い)
@@ -429,6 +432,11 @@ Mon:${nearbyMonsters}`;
                         char = item.symbol;
                     }
                     cssClass = `item ${item.type}`;
+                }
+                // 罠 (オリジナルRogue準拠: 地図作成の巻物で表示される - room.c draw_magic_map line 315-316)
+                else if (trapManager && trapManager.traps.some(t => t.col === x && t.row === y && !t.hidden)) {
+                    char = '^';
+                    cssClass = 'trap';
                 }
                 // 地形
                 else {
