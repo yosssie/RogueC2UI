@@ -2562,9 +2562,10 @@ export class Game {
 
         // 既に金貨の上にいる？
         if (monster.x === goldItem.x && monster.y === goldItem.y) {
-            // 眠る & 金貨探索フラグ削除
-            monster.addFlag(Monster.FLAGS.ASLEEP);
+            // 眠る & 金貨探索フラグ削除 & WAKENS削除
+            monster.setFlag(Monster.FLAGS.ASLEEP);
             monster.removeFlag(Monster.FLAGS.SEEKS_GOLD);
+            monster.removeFlag(Monster.FLAGS.WAKENS);
             return true;
         }
 
@@ -2601,8 +2602,9 @@ export class Game {
 
         // 移動後、金貨の上なら寝る設定
         if (moved && monster.x === goldItem.x && monster.y === goldItem.y) {
-            monster.addFlag(Monster.FLAGS.ASLEEP);
+            monster.setFlag(Monster.FLAGS.ASLEEP);
             monster.removeFlag(Monster.FLAGS.SEEKS_GOLD);
+            monster.removeFlag(Monster.FLAGS.WAKENS);
         }
 
         return moved;
