@@ -2886,6 +2886,9 @@ export class Game {
 
     // 売却画面表示
     showSellingScreen() {
+        // 多重実行防止ガード
+        if (this.state !== 'victory') return;
+
         this.state = 'selling';
         this.display.drawSelling(this.sellResults, Mesg);
 
@@ -2905,13 +2908,32 @@ export class Game {
 
     // ゲーム終了・ランキングへ
     finishGame() {
-        this.state = 'gameover'; // 以降の処理のためにgameover状態にする
+        // 多重実行防止ガード
+        if (this.state !== 'selling') return;
 
-        // 勝利として記録
-        this.scoreManager.killedBy(null, this.scoreManager.DEATH_CAUSES.WIN);
+        this.state = 'gameover'; // 一旦gameover状態にする（整合性のため）
 
-        // ランキング表示フローへ
-        this.waitForRanking();
+        // 勝利として記録 (表示は抑制: suppressDisplay=true)
+        const rank = this.scoreManager.killedBy(null, this.scoreManager.DEATH_CAUSES.WIN, true);
+
+        // ランキング画面を即時表示
+        this.scoreManager.showRanking(rank);
+
+        // ランキング画面からタイトルへ戻る待機処理
+        this.waitForTitleFromRanking();
+    }
+
+    waitForTitleFromRanking() {
+        const handleKey = (e) => {
+            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+                document.removeEventListener('keydown', handleKey);
+                this.state = 'title';
+                this.display.showScreen('title');
+                this.waitForStart();
+            }
+        };
+        // 連打防止のため少し遅らせて登録
+        setTimeout(() => document.addEventListener('keydown', handleKey), 500);
     }
 
     gameOver(monster = null, cause = null) {

@@ -26,10 +26,11 @@ export class ScoreManager {
      * @param {Object} monster - 殺したモンスター (nullの場合はother指定)
      * @param {number} other - その他の死因
      */
-    killedBy(monster = null, other = null) {
+    killedBy(monster = null, other = null, suppressDisplay = false) {
         const player = this.game.player;
 
         // 自主退出以外は金貨を10%減らす (score.c: line 83, 173, 230)
+        // 勝利したとしてもギルドへの上納金として(?)10%引かれるのがRogueの仕様
         if (other !== this.DEATH_CAUSES.QUIT) {
             player.gold = Math.floor(player.gold * 0.9);
         }
@@ -78,6 +79,10 @@ export class ScoreManager {
         // スコア登録
         const rank = this.putScores(monster, other, causeDetail);
 
+        if (suppressDisplay) {
+            return rank;
+        }
+
         // 墓石表示 (QUITと勝利以外)
         if (other !== this.DEATH_CAUSES.QUIT && other !== this.DEATH_CAUSES.WIN) {
             this.showTombstone(player.name, cause1, cause2, player.gold, rank);
@@ -87,6 +92,8 @@ export class ScoreManager {
             // QUIT時は簡易メッセージ
             this.game.display.showMessage(`${causeText} (${player.gold}ゴールド)`);
         }
+
+        return rank;
     }
 
     /**

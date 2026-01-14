@@ -389,47 +389,49 @@ export class Item {
 
     // アイテムの売却価格を計算
     getValue() {
-        let val = this.value; // 定義データのベース価格
+        let val = this.value || 0; // 定義データのベース価格
 
         switch (this.type) {
             case 'weapon':
                 // 矢などは個数倍
                 if (['arrow', 'dart', 'shuriken', 'dagger'].includes(this.id)) {
-                    val *= this.quantity;
+                    val *= (this.quantity || 1);
                 }
                 // エンチャント加算
-                val += (this.hitBonus * 85) + (this.damageBonus * 85);
+                val += ((this.hitBonus || 0) * 85) + ((this.damageBonus || 0) * 85);
                 break;
             case 'armor':
                 // アーマーはACではなくエンチャント値(d_enchant)で価格変動
-                val += (this.damageBonus * 75);
+                val += ((this.damageBonus || 0) * 75);
                 if (this.protected) {
                     val += 200;
                 }
                 break;
             case 'wand':
-                val *= (this.charges + 1);
+                val *= ((this.charges || 0) + 1);
                 break;
             case 'scroll':
             case 'potion':
-                val *= this.quantity;
+                val *= (this.quantity || 1);
                 break;
             case 'ring':
-                // class (enchantment) + 1
-                if (this.enchantment !== undefined) {
-                    // エンチャント値がある場合 (例: 力の指輪)
-                    val *= (this.enchantment + 1);
-                } else {
-                    // エンチャント値がない指輪は multiplier なし (x1)
-                    // オリジナルRogueでは class は未使用なら0なので x1 になる
+                // オリジナルRogue準拠の指輪価格計算
+                // 特定の指輪はエンチャント値に応じて価格が変動 (score.c get_value)
+                if (['ring_add_str', 'ring_dex', 'ring_protect', 'ring_add_hit', 'ring_add_dam'].includes(this.id)) {
+                    if ((this.enchantment || 0) > 0) {
+                        val += (this.enchantment || 0) * 100;
+                    } else {
+                        val = 10;
+                    }
                 }
+                // それ以外の指輪はベース価格のみ（未識別による半額ロジックは全識別前提なので無視）
                 break;
             case 'amulet':
                 val = 5000;
                 break;
         }
 
-        if (val <= 0) val = 10;
+        if (isNaN(val) || val <= 0) val = 10;
         return Math.floor(val);
     }
 
