@@ -563,3 +563,22 @@ body {
     font-weight: bold;
     text-shadow: 0 0 5px #ff0000;
 }
+
+/* ===========================
+   UI枠線スタイルの上書き (枠線化)
+   =========================== */
+#right-panel {
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+}
+
+#status-bar {
+    border: 1px solid var(--border-color);
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+}
+
+#message-area {
+    border: 1px solid var(--border-color);
+    padding: 0.5rem;
+}

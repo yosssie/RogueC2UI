@@ -1710,9 +1710,8 @@ export class Game {
             uiItem._isAtFeet = true;
             list.push(uiItem);
         }
-
-        // 足元の階段
-        if (this.level.getTile(this.player.x, this.player.y) === '%') {
+        // 足元の階段 (アイテムがない場合のみ表示)
+        else if (this.level.getTile(this.player.x, this.player.y) === '%') {
             list.push({
                 getDisplayName: () => '階段',
                 _isStairs: true
@@ -2151,8 +2150,12 @@ export class Game {
 
         // 足元チェック
         const existingItem = this.items.find(i => i.x === this.player.x && i.y === this.player.y);
-        if (existingItem) {
-            this.display.showMessage('足元には既にアイテムがある。');
+        const tile = this.level.getTile(this.player.x, this.player.y);
+        // 罠チェック (TrapManager)
+        const existingTrap = this.trapManager.traps.some(t => t.col === this.player.x && t.row === this.player.y);
+
+        if (existingItem || tile === '%' || existingTrap) {
+            this.display.showMessage(Mesg[88]); // "そこには、すでに何かが置かれている。"
             return false;
         }
 
