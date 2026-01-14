@@ -168,6 +168,22 @@ export class Item {
             this.mapping[def.id] = shuffledMaterials[index % shuffledMaterials.length] + 'の指輪';
         });
 
+        // デフォルト価格設定 (valueが未定義のものに設定)
+        Object.keys(this.definitions).forEach(key => {
+            this.definitions[key].forEach(def => {
+                if (def.value === undefined) {
+                    switch (def.type) {
+                        case 'potion': def.value = 50; break;
+                        case 'scroll': def.value = 100; break;
+                        case 'wand': def.value = 200; break;
+                        case 'ring': def.value = 250; break;
+                        case 'amulet': def.value = 5000; break;
+                        default: def.value = 10; break;
+                    }
+                }
+            });
+        });
+
         this.initialized = true;
     }
 
@@ -369,6 +385,52 @@ export class Item {
         }
 
         return typeScore * 1000 + subScore;
+    }
+
+    // アイテムの売却価格を計算
+    getValue() {
+        let val = this.value; // 定義データのベース価格
+
+        switch (this.type) {
+            case 'weapon':
+                // 矢などは個数倍
+                if (['arrow', 'dart', 'shuriken', 'dagger'].includes(this.id)) {
+                    val *= this.quantity;
+                }
+                // エンチャント加算
+                val += (this.hitBonus * 85) + (this.damageBonus * 85);
+                break;
+            case 'armor':
+                // アーマーはACではなくエンチャント値(d_enchant)で価格変動
+                val += (this.damageBonus * 75);
+                if (this.protected) {
+                    val += 200;
+                }
+                break;
+            case 'wand':
+                val *= (this.charges + 1);
+                break;
+            case 'scroll':
+            case 'potion':
+                val *= this.quantity;
+                break;
+            case 'ring':
+                // class (enchantment) + 1
+                if (this.enchantment !== undefined) {
+                    // エンチャント値がある場合 (例: 力の指輪)
+                    val *= (this.enchantment + 1);
+                } else {
+                    // エンチャント値がない指輪は multiplier なし (x1)
+                    // オリジナルRogueでは class は未使用なら0なので x1 になる
+                }
+                break;
+            case 'amulet':
+                val = 5000;
+                break;
+        }
+
+        if (val <= 0) val = 10;
+        return Math.floor(val);
     }
 
     usePotion(player, game) {

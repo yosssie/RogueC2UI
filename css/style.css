@@ -113,7 +113,9 @@ body {
 }
 
 #tombstone-display,
-#ranking-display {
+#ranking-display,
+#victory-display,
+#selling-display {
     color: #fff;
     text-align: left;
     font-family: 'Noto Sans Mono', monospace;

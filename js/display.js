@@ -13,11 +13,16 @@ export class Display {
         this.gameoverContent = document.getElementById('gameover-content');
         this.rankingContent = document.getElementById('ranking-content');
 
+        this.victoryContent = document.getElementById('victory-content');
+        this.victoryDisplay = document.getElementById('victory-display');
+
+        this.sellingContent = document.getElementById('selling-content');
+        this.sellingDisplay = document.getElementById('selling-display');
+
         // その他の画面（後で対応）
         this.menuScreen = document.getElementById('menu-screen');
         this.configScreen = document.getElementById('config-screen');
-        this.victoryScreen = document.getElementById('victory-screen');
-        this.sellingScreen = document.getElementById('selling-screen');
+
 
         this.messageLog = document.getElementById('message-log');
         this.dungeonDisplay = document.getElementById('dungeon-display');
@@ -157,6 +162,8 @@ Mon:${nearbyMonsters}`;
         this.dungeonContent.classList.remove('active');
         this.gameoverContent.classList.remove('active');
         this.rankingContent.classList.remove('active');
+        this.victoryContent.classList.remove('active');
+        this.sellingContent.classList.remove('active');
 
         // 指定されたビューを表示
         if (screenName === 'title') {
@@ -167,6 +174,10 @@ Mon:${nearbyMonsters}`;
             this.gameoverContent.classList.add('active');
         } else if (screenName === 'ranking') {
             this.rankingContent.classList.add('active');
+        } else if (screenName === 'victory') {
+            this.victoryContent.classList.add('active');
+        } else if (screenName === 'selling') {
+            this.sellingContent.classList.add('active');
         }
 
         // その他の画面は後で対応
@@ -642,109 +653,93 @@ Mon:${nearbyMonsters}`;
     drawVictory(bannerData, Mesg) {
         this.showScreen('victory');
 
-        this.victoryScreen.innerHTML = '';
-        this.victoryScreen.style.backgroundColor = '#000';
-        this.victoryScreen.style.color = '#fff';
-        this.victoryScreen.style.fontFamily = 'monospace';
+        let html = '';
 
-        const container = document.createElement('div');
-        container.style.fontSize = '1.2rem'; // 追加
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.alignItems = 'center';
-        container.style.justifyContent = 'center';
-        container.style.height = '100%';
+        // ヘルパー：中央揃え用のスペース生成
+        const getCenterPadding = (text) => {
+            const width = 80;
+            // マルチバイト文字幅を考慮したパディング計算が必要だが、メッセージは全角が多い
+            // getTextWidth相当の簡易計算（全角2、半角1）
+            let textWidth = 0;
+            for (let i = 0; i < text.length; i++) {
+                const c = text.charCodeAt(i);
+                if ((c >= 0x3000 && c <= 0xffff) || (c >= 0xff01 && c <= 0xff60)) {
+                    textWidth += 2;
+                } else {
+                    textWidth += 1;
+                }
+            }
+            const padding = Math.max(0, Math.floor((width - textWidth) / 2));
+            return ' '.repeat(padding);
+        };
 
-        // バナー描画
-        const bannerDiv = document.createElement('div');
-        bannerDiv.style.lineHeight = '0.6'; // 行間調整
-        bannerDiv.style.marginBottom = '2rem';
+        // Y=0-5: 空行 (6行)
+        html += '\n'.repeat(6);
+
+        // Y=6-12: バナー (7行)
+        // 表示位置: X=10 (rogue.h ROGUE_COLUMNS/2 - 30 -> 40 - 30 = 10)
+        const bannerIndent = ' '.repeat(10);
 
         bannerData.forEach(row => {
             let rowStr = '';
-            for (let i = 0; i < 59; i++) { // 0-58
+            for (let i = 0; i < 59; i++) { // 幅59
                 // bit check
                 const byte = row[i >> 3];
                 const mask = 0x80 >> (i & 7);
                 if (byte & mask) {
-                    rowStr += '@'; // オリジナルは @ 
+                    rowStr += '@';
                 } else {
                     rowStr += ' ';
                 }
             }
-            const line = document.createElement('div');
-            line.textContent = rowStr.replace(/ /g, '\u00A0'); // nbsp
-            line.style.whiteSpace = 'pre';
-            line.style.color = '#0f0'; // 緑色？ オリジナルは環境による
-            bannerDiv.appendChild(line);
+            // バナー行構築 (緑色)
+            html += bannerIndent + `<span style="color: #0f0;">${rowStr}</span>\n`;
         });
-        container.appendChild(bannerDiv);
 
-        // メッセージ
-        const msgDiv = document.createElement('div');
-        msgDiv.style.textAlign = 'center';
-        msgDiv.style.lineHeight = '2';
+        // Y=13-14: 空行 (2行)
+        html += '\n'.repeat(2);
 
+        // Y=15-18: メッセージ (4行)
         [182, 183, 184, 185].forEach(id => {
-            const p = document.createElement('div');
-            p.textContent = Mesg[id];
-            msgDiv.appendChild(p);
+            const msg = Mesg[id];
+            html += getCenterPadding(msg) + msg + '\n';
         });
-        container.appendChild(msgDiv);
 
-        // キー待ちガイド
-        const guide = document.createElement('div');
-        guide.textContent = "-- Press Button A to continue --";
-        guide.style.marginTop = '3rem';
-        guide.style.color = '#888';
-        container.appendChild(guide);
+        // Y=19-: ガイド
+        html += '\n\n';
+        const guide = "-- Press Button A to continue --";
+        html += getCenterPadding(guide) + guide;
 
-        this.victoryScreen.appendChild(container);
+        this.victoryDisplay.innerHTML = html;
     }
 
     // 売却画面
-    drawSelling(sellResults, Mesg) {
+    drawSelling(inventoryData, Mesg) {
         this.showScreen('selling');
-        this.sellingScreen.innerHTML = '';
 
-        // 画面中央に配置、幅を制限
-        const container = document.createElement('div');
-        container.style.width = '100%';
-        container.style.maxWidth = '800px';
-        container.style.margin = '0 auto';  // 中央寄せ
-        container.style.padding = '2rem 1rem'; // 上下マージン、左右パディング
+        let html = '';
 
-        container.style.fontFamily = 'monospace';
-        container.style.height = '100%';
-        container.style.overflowY = 'auto';
-        container.style.color = '#ccc';
-        container.style.fontSize = '1.2rem';
+        // インデント設定 (20文字)
+        const indent = ' '.repeat(20);
 
-        // ヘッダ
-        const header = document.createElement('div');
-        header.textContent = Mesg[198]; // " 価格      持ちもの"
-        header.style.borderBottom = '1px solid #fff';
-        header.style.marginBottom = '1rem';
-        container.appendChild(header);
+        // ヘッダー行: Mesg[198] " 価格      持ちもの"
+        html += indent + Mesg[198] + '\n';
 
-        // リスト
-        sellResults.forEach(item => {
-            const row = document.createElement('div');
-            row.style.marginBottom = '0.5rem';
-            // 金額は5桁右寄せ
-            const valStr = String(item.value).padStart(5, ' ');
-            // アイテム名は11文字目から
-            row.textContent = `${valStr}      ${item.name}`;
-            container.appendChild(row);
+        // データ行
+        inventoryData.forEach(item => {
+            // item: { value: number, name: string }
+            // フォーマット: "%5d      " (5 digits + 6 spaces)
+            const valStr = item.value.toString().padStart(5, ' ');
+            const gap = '      ';
+            const line = `${valStr}${gap}${item.name}`;
+            html += indent + line + '\n';
         });
 
-        // キー待ち
-        const guide = document.createElement('div');
-        guide.textContent = "-- Press Button A to continue --";
-        guide.style.marginTop = '2rem';
-        guide.style.color = '#888';
-        container.appendChild(guide);
+        // フッター（ガイド）
+        const footer = "-- Press Button A to continue --";
+        html += '\n\n' + indent + footer;
 
-        this.sellingScreen.appendChild(container);
+        // 上部に余白
+        this.sellingDisplay.innerHTML = '\n'.repeat(5) + html;
     }
 }

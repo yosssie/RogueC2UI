@@ -2843,61 +2843,75 @@ export class Game {
             }
         }
 
-        // 売却計算とゴールド加算
+        // 売却計算とゴールド加算 (sell_pack)
         this.sellResults = [];
-        let totalValue = 0;
-        const newInventory = [];
 
+        // 食料以外を全て売却してゴールドにする
         this.player.inventory.forEach(item => {
-            if (item.type === 'food') {
-                newInventory.push(item);
-            } else {
-                item.isIdentified = true; // 全識別
-                const val = this.getItemWorth(item);
-                totalValue += val;
+            if (item.type !== 'food') {
+                item.identified = true; // 全て識別される
+                const val = item.getValue(); // 価格計算
+                this.player.gold += val;
+
+                // 売却リストに追加
                 this.sellResults.push({
                     name: item.getDisplayName(),
-                    value: val
+                    value: val,
+                    color: (item.id === 'gold') ? '#ff0' : null // 金貨なら黄色くする？（任意）
                 });
             }
         });
 
-        this.player.inventory = newInventory;
-        this.player.gold += totalValue;
+        // 所持品から食料以外を削除する必要があるかわからないが、
+        // スコア計算にはgoldしか使わないので、所持品リストを操作する必要はあまりない。
+        // ただし所持金は増えている必要がある。
 
         // バナー画面表示 (Display.js)
         this.display.drawVictory(BANNER_DATA, Mesg);
+
+        // 売却画面への遷移待ち
+        this.waitForSelling();
     }
 
-    // 売却画面表示 (InputManagerから呼ばれる)
+    waitForSelling() {
+        const handleKey = (e) => {
+            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+                document.removeEventListener('keydown', handleKey);
+                this.showSellingScreen();
+            }
+        };
+        // 少し遅らせて登録（連打対策）
+        setTimeout(() => document.addEventListener('keydown', handleKey), 500);
+    }
+
+    // 売却画面表示
     showSellingScreen() {
         this.state = 'selling';
         this.display.drawSelling(this.sellResults, Mesg);
+
+        // ランキング（ゲーム終了）への遷移待ち
+        this.waitForFinish();
     }
 
-    // ゲーム終了・ランキングへ (InputManagerから呼ばれる)
+    waitForFinish() {
+        const handleKey = (e) => {
+            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+                document.removeEventListener('keydown', handleKey);
+                this.finishGame();
+            }
+        };
+        setTimeout(() => document.addEventListener('keydown', handleKey), 500);
+    }
+
+    // ゲーム終了・ランキングへ
     finishGame() {
-        this.state = 'gameover';
-        this.scoreManager.killedBy(null, this.scoreManager.DEATH_CAUSES.WIN);
-        this.waitForRanking();
-    }
+        this.state = 'gameover'; // 以降の処理のためにgameover状態にする
 
-    // アイテムの価値取得 (簡易実装)
-    getItemWorth(item) {
-        // TODO: オリジナル準拠の価値(worth)を定義する必要あり
-        let worth = 0;
-        switch (item.type) {
-            case 'weapon': worth = 80; break;
-            case 'armor': worth = 100; break;
-            case 'scroll': worth = 50; break;
-            case 'potion': worth = 50; break;
-            case 'wand': worth = 150; break;
-            case 'ring': worth = 200; break;
-            case 'amulet': worth = 1000; break;
-            default: worth = 10; break;
-        }
-        // 識別済みなら価値が上がるなどの要素もオリジナルにはある
-        return worth;
+        // 勝利として記録
+        this.scoreManager.killedBy(null, this.scoreManager.DEATH_CAUSES.WIN);
+
+        // ランキング表示フローへ
+        this.waitForRanking();
     }
 
     gameOver(monster = null, cause = null) {
