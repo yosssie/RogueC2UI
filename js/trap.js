@@ -165,15 +165,19 @@ export class TrapManager {
 
         if (this.game.player.hp <= 0) {
             this.game.player.hp = 0;
-            this.game.gameOver(null, this.game.scoreManager.DEATH_CAUSES.POISON_DART);
+            this.game.display.showMessage('あなたは死にました...');
+            this.game.state = 'death_message';
+            this.game.deathCause = { monster: null, cause: this.game.scoreManager.DEATH_CAUSES.POISON_DART };
             return;
         }
 
         // 40%の確率でSTR-1 (力維持の指輪がない場合)
         const hasSustain = this.game.ringManager && this.game.ringManager.hasSustainStrength();
+
         if (!hasSustain && Math.random() < 0.4 && this.game.player.str >= 3) {
             this.game.player.str--;
-            this.game.display.showMessage(Mesg[73]); // "マムシの毒が回った。" (mesg[73] "A sting weakens you")
+            this.game.player.updateStats(); // ステータス表示更新 (trap.c line 95)
+            // オリジナルRogueでは特別なメッセージは表示しない (trap.c line 91-94)
         }
     }
 

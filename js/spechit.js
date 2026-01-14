@@ -95,7 +95,8 @@ export class SpecialHit {
         game.display.showMessage(Mesg[203]);
 
         // プレイヤーの状態異常を設定
-        game.player.status.sleep += turns;
+        // 加算すると永遠に解けないことがあるので、最大値で更新（延長）
+        game.player.status.sleep = Math.max(game.player.status.sleep, turns);
     }
 
     static sting(game, monster) {
@@ -109,7 +110,8 @@ export class SpecialHit {
             game.display.showMessage(Mesg[207].replace('%s', monster.name));
             if (game.player.str > 3) {
                 game.player.str--;
-                game.display.showMessage('力が弱くなった気がする。');
+                game.player.updateStats(); // ステータス表示更新 (spechit.c line 406)
+                // オリジナルRogueではMesg[207]のみ表示 (spechit.c line 403-406)
             }
         }
     }

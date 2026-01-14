@@ -768,4 +768,39 @@ export class Item {
 
         return newItem;
     }
+
+    // 金貨を生成 (object.c)
+    static createGold(amount) {
+        const gold = new Item('*', 0, 0);
+        gold.type = 'gold';
+        gold.id = 'gold';
+        gold.value = amount;
+        gold.quantity = 1;
+        return gold;
+    }
+
+    // ランダムアイテムを生成 (object.c gr_object)
+    static createRandomItem(floor) {
+        // オリジナルRogueの出現確率に基づく
+        const rand = Math.random() * 100;
+
+        let symbol;
+        if (rand < 36) {
+            symbol = '!'; // ポーション 36%
+        } else if (rand < 66) {
+            symbol = '?'; // 巻物 30%
+        } else if (rand < 74) {
+            symbol = ':'; // 食料 8%
+        } else if (rand < 82) {
+            symbol = '/'; // 杖 8%
+        } else if (rand < 89) {
+            symbol = ')'; // 武器 7%
+        } else if (rand < 96) {
+            symbol = ']'; // 防具 7%
+        } else {
+            symbol = '='; // 指輪 4%
+        }
+
+        return new Item(symbol, 0, 0);
+    }
 }

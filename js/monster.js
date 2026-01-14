@@ -34,32 +34,32 @@ export class Monster {
     };
 
     static definitions = {
-        'A': { name: '水ごけの怪物', hp: 25, exp: 20, minLevel: 9, maxLevel: 18, damage: '0d0', flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'RUSTS'] },
-        'B': { name: '大こうもり', hp: 10, exp: 2, minLevel: 1, maxLevel: 8, damage: '1d3', flags: ['ASLEEP', 'WANDERS', 'FLITS'] },
-        'C': { name: 'ケンタウロス', hp: 32, exp: 15, minLevel: 7, maxLevel: 16, damage: '3d3/2d5', flags: ['ASLEEP', 'WANDERS'] },
-        'D': { name: 'ドラゴン', hp: 145, exp: 5000, minLevel: 21, maxLevel: 99, damage: '4d6/4d9', flags: ['ASLEEP', 'WAKENS', 'FLAMES'] },
-        'E': { name: '大うずら', hp: 11, exp: 2, minLevel: 1, maxLevel: 7, damage: '1d3', flags: ['ASLEEP', 'WAKENS'] },
-        'F': { name: 'はえとりぐさ', hp: 73, exp: 91, minLevel: 12, maxLevel: 99, damage: '5d5', flags: ['HOLDS', 'STATIONARY'] },
-        'G': { name: '翼ライオン', hp: 115, exp: 2000, minLevel: 20, maxLevel: 99, damage: '5d5/5d5', flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'FLIES'] },
-        'H': { name: '小鬼', hp: 15, exp: 3, minLevel: 1, maxLevel: 10, damage: '1d3/1d2', flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
-        'I': { name: '氷の怪物', hp: 15, exp: 5, minLevel: 2, maxLevel: 11, damage: '0d0', flags: ['ASLEEP', 'FREEZES'] },
-        'J': { name: '巨大トカゲ', hp: 132, exp: 3000, minLevel: 21, maxLevel: 99, damage: '3d10/4d5', flags: ['ASLEEP', 'WANDERS'] },
-        'K': { name: '大はやぶさ', hp: 10, exp: 2, minLevel: 1, maxLevel: 6, damage: '1d4', flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'FLIES'] },
-        'L': { name: '金持ち妖精', hp: 25, exp: 21, minLevel: 6, maxLevel: 16, damage: '0d0', flags: ['ASLEEP', 'STEALS_GOLD'] },
-        'M': { name: 'メデューサ', hp: 97, exp: 250, minLevel: 18, maxLevel: 99, damage: '4d4/3d7', flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'CONFUSES'] },
-        'N': { name: 'ニンフ', hp: 25, exp: 39, minLevel: 10, maxLevel: 19, damage: '0d0', flags: ['ASLEEP', 'STEALS_ITEM'] },
-        'O': { name: '欲ばり鬼', hp: 25, exp: 5, minLevel: 4, maxLevel: 13, damage: '1d6', flags: ['ASLEEP', 'WANDERS', 'WAKENS', 'SEEKS_GOLD'] },
-        'P': { name: '幽霊', hp: 76, exp: 120, minLevel: 15, maxLevel: 24, damage: '5d4', flags: ['ASLEEP', 'INVISIBLE', 'WANDERS', 'FLITS'] },
-        'Q': { name: '大つのじか', hp: 30, exp: 20, minLevel: 8, maxLevel: 17, damage: '3d5', flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
-        'R': { name: 'がらがらへび', hp: 19, exp: 10, minLevel: 3, maxLevel: 12, damage: '2d5', flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'STINGS'] },
-        'S': { name: 'へび', hp: 8, exp: 2, minLevel: 1, maxLevel: 9, damage: '1d3', flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
-        'T': { name: '巨人', hp: 75, exp: 125, minLevel: 13, maxLevel: 22, damage: '4d6/1d4', flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
-        'U': { name: '一角獣', hp: 90, exp: 200, minLevel: 17, maxLevel: 26, damage: '4d10', flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
-        'V': { name: 'バンパイア', hp: 55, exp: 350, minLevel: 19, maxLevel: 99, damage: '1d14/1d4', flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'DRAINS_LIFE'] },
-        'W': { name: '死霊', hp: 45, exp: 55, minLevel: 14, maxLevel: 23, damage: '2d8', flags: ['ASLEEP', 'WANDERS', 'DROPS_LEVEL'] },
-        'X': { name: '物まねの怪物', hp: 42, exp: 110, minLevel: 16, maxLevel: 25, damage: '4d6', flags: ['ASLEEP', 'IMITATES'] },
-        'Y': { name: '雪男', hp: 35, exp: 50, minLevel: 11, maxLevel: 20, damage: '3d6', flags: ['ASLEEP', 'WANDERS'] },
-        'Z': { name: 'ゾンビ', hp: 21, exp: 8, minLevel: 5, maxLevel: 14, damage: '1d7', flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
+        'A': { name: '水ごけの怪物', hp: 25, exp: 20, minLevel: 9, maxLevel: 18, damage: '0d0', dropPercent: 0, flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'RUSTS'] },
+        'B': { name: '大こうもり', hp: 10, exp: 2, minLevel: 1, maxLevel: 8, damage: '1d3', dropPercent: 0, flags: ['ASLEEP', 'WANDERS', 'FLITS'] },
+        'C': { name: 'ケンタウロス', hp: 32, exp: 15, minLevel: 7, maxLevel: 16, damage: '3d3/2d5', dropPercent: 10, flags: ['ASLEEP', 'WANDERS'] },
+        'D': { name: 'ドラゴン', hp: 145, exp: 5000, minLevel: 21, maxLevel: 99, damage: '4d6/4d9', dropPercent: 90, flags: ['ASLEEP', 'WAKENS', 'FLAMES'] },
+        'E': { name: '大うずら', hp: 11, exp: 2, minLevel: 1, maxLevel: 7, damage: '1d3', dropPercent: 0, flags: ['ASLEEP', 'WAKENS'] },
+        'F': { name: 'はえとりぐさ', hp: 73, exp: 91, minLevel: 12, maxLevel: 99, damage: '5d5', dropPercent: 0, flags: ['HOLDS', 'STATIONARY'] },
+        'G': { name: '翼ライオン', hp: 115, exp: 2000, minLevel: 20, maxLevel: 99, damage: '5d5/5d5', dropPercent: 10, flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'FLIES'] },
+        'H': { name: '小鬼', hp: 15, exp: 3, minLevel: 1, maxLevel: 10, damage: '1d3/1d2', dropPercent: 0, flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
+        'I': { name: '氷の怪物', hp: 15, exp: 5, minLevel: 2, maxLevel: 11, damage: '0d0', dropPercent: 0, flags: ['ASLEEP', 'FREEZES'] },
+        'J': { name: '巨大トカゲ', hp: 132, exp: 3000, minLevel: 21, maxLevel: 99, damage: '3d10/4d5', dropPercent: 0, flags: ['ASLEEP', 'WANDERS'] },
+        'K': { name: '大はやぶさ', hp: 10, exp: 2, minLevel: 1, maxLevel: 6, damage: '1d4', dropPercent: 0, flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'FLIES'] },
+        'L': { name: '金持ち妖精', hp: 25, exp: 21, minLevel: 6, maxLevel: 16, damage: '0d0', dropPercent: 0, flags: ['ASLEEP', 'STEALS_GOLD'] },
+        'M': { name: 'メデューサ', hp: 97, exp: 250, minLevel: 18, maxLevel: 99, damage: '4d4/3d7', dropPercent: 25, flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'CONFUSES'] },
+        'N': { name: 'ニンフ', hp: 25, exp: 39, minLevel: 10, maxLevel: 19, damage: '0d0', dropPercent: 100, flags: ['ASLEEP', 'STEALS_ITEM'] },
+        'O': { name: '欲ばり鬼', hp: 25, exp: 5, minLevel: 4, maxLevel: 13, damage: '1d6', dropPercent: 10, flags: ['ASLEEP', 'WANDERS', 'WAKENS', 'SEEKS_GOLD'] },
+        'P': { name: '幽霊', hp: 76, exp: 120, minLevel: 15, maxLevel: 24, damage: '5d4', dropPercent: 50, flags: ['ASLEEP', 'INVISIBLE', 'WANDERS', 'FLITS'] },
+        'Q': { name: '大つのじか', hp: 30, exp: 20, minLevel: 8, maxLevel: 17, damage: '3d5', dropPercent: 20, flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
+        'R': { name: 'がらがらへび', hp: 19, exp: 10, minLevel: 3, maxLevel: 12, damage: '2d5', dropPercent: 0, flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'STINGS'] },
+        'S': { name: 'へび', hp: 8, exp: 2, minLevel: 1, maxLevel: 9, damage: '1d3', dropPercent: 0, flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
+        'T': { name: '巨人', hp: 75, exp: 125, minLevel: 13, maxLevel: 22, damage: '4d6/1d4', dropPercent: 33, flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
+        'U': { name: '一角獣', hp: 90, exp: 200, minLevel: 17, maxLevel: 26, damage: '4d10', dropPercent: 33, flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
+        'V': { name: 'バンパイア', hp: 55, exp: 350, minLevel: 19, maxLevel: 99, damage: '1d14/1d4', dropPercent: 18, flags: ['ASLEEP', 'WAKENS', 'WANDERS', 'DRAINS_LIFE'] },
+        'W': { name: '死霊', hp: 45, exp: 55, minLevel: 14, maxLevel: 23, damage: '2d8', dropPercent: 0, flags: ['ASLEEP', 'WANDERS', 'DROPS_LEVEL'] },
+        'X': { name: '物まねの怪物', hp: 42, exp: 110, minLevel: 16, maxLevel: 25, damage: '4d6', dropPercent: 0, flags: ['ASLEEP', 'IMITATES'] },
+        'Y': { name: '雪男', hp: 35, exp: 50, minLevel: 11, maxLevel: 20, damage: '3d6', dropPercent: 20, flags: ['ASLEEP', 'WANDERS'] },
+        'Z': { name: 'ゾンビ', hp: 21, exp: 8, minLevel: 5, maxLevel: 14, damage: '1d7', dropPercent: 0, flags: ['ASLEEP', 'WAKENS', 'WANDERS'] },
     };
 
     /**
@@ -102,6 +102,7 @@ export class Monster {
         this.maxHp = def.hp;
         this.exp = def.exp;
         this.damage = def.damage; // string "1d3" etc
+        this.dropPercent = def.dropPercent || 0; // アイテムドロップ率
         this.symbol = type;
 
         // フラグ初期化
@@ -138,6 +139,15 @@ export class Monster {
 
     removeFlag(flagVal) {
         this.flags &= ~flagVal;
+    }
+
+    takeDamage(damage) {
+        this.hp -= damage;
+        if (this.hp < 0) this.hp = 0;
+    }
+
+    isDead() {
+        return this.hp <= 0;
     }
 
     // オリジナルRogue monster.c の mon_sees() を移植

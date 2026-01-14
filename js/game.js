@@ -518,8 +518,26 @@ export class Game {
         this.isProcessing = true;
         try {
             // プレイヤーの行動開始時に、前のターンのメッセージをアーカイブ(グレーにする)
-            // これにより、今回のターンで発生する一連のメッセージは全て白文字になる
             this.display.archiveMessages();
+
+            // 睡眠・凍結チェック (ASLEEP/FREEZE)
+            if (this.player.status.sleep > 0) {
+                this.player.status.sleep--;
+
+                if (this.player.status.sleep <= 0) {
+                    this.display.showMessage("再び動けるようになった。");
+                }
+
+                // 凍結解除メッセージはここでは出さず、行動不能メッセージを出すかどうか
+                // オリジナルRogueでは凍結中は "You cannot move" 等のメッセージは出ず、
+                // モンスターが動くだけだが、何が起きているか分かるようにメッセージを出すのもあり。
+                // 今回はシンプルに何も出さずにターンを進める（オリジナル準拠）。
+                // ただし、もしsleepが切れたらメッセージを出すと親切。
+
+                await this.processTurn();
+                this.skipTurnProcessing = false;
+                return;
+            }
 
             let actionTaken = false;
 
@@ -1588,13 +1606,7 @@ export class Game {
             }
         }
 
-        // 睡眠/凍結 (行動不能)
-        if (status.sleep > 0) {
-            status.sleep--;
-            if (status.sleep <= 0) {
-                this.display.showMessage("動けるようになった。");
-            }
-        }
+
 
         // 浮遊
         if (status.levitate > 0) {
@@ -2670,6 +2682,10 @@ export class Game {
 
                 if (defender.isDead()) {
                     message += ` -> ` + Mesg[24].replace('%s', defender.name) + `(${defender.exp} exp)`;
+
+                    // アイテムドロップ判定 (cough_up)
+                    this.coughUp(defender);
+
                     this.monsters = this.monsters.filter(m => m !== defender);
                     const oldLevel = this.player.level;
                     this.player.gainExp(defender.exp);
@@ -2964,7 +2980,77 @@ export class Game {
         this.waitForRanking();
     }
 
+    // モンスター死亡時のアイテムドロップ処理 (spechit.c cough_up)
+    coughUp(monster) {
+        // 帰還中（すでにクリア済みの階層）ではドロップしない
+        if (this.level.floor < this.maxReachedFloor) {
+            return;
+        }
+
+        let item = null;
+
+        if (monster.hasFlag(Monster.FLAGS.STEALS_GOLD)) {
+            // L (Leprechaun): 必ず金貨をドロップ
+            const min = this.level.floor * 15;
+            const max = this.level.floor * 30;
+            const amount = Math.floor(Math.random() * (max - min + 1)) + min;
+
+            item = Item.createGold(amount);
+        } else {
+            // その他: dropPercent の確率でランダムアイテム生成
+            if (Math.random() * 100 >= monster.dropPercent) {
+                return; // ドロップ失敗
+            }
+
+            // ランダムアイテム生成 (object.c gr_object 相当)
+            item = Item.createRandomItem(this.level.floor);
+        }
+
+        if (!item) return;
+
+        // モンスターの周囲にアイテムを配置 (try_to_cough)
+        // 中心から外側へ螺旋状に探索
+        for (let n = 0; n <= 5; n++) {
+            for (let i = -n; i <= n; i++) {
+                if (this.tryToCough(monster.y + n, monster.x + i, item)) return;
+                if (this.tryToCough(monster.y - n, monster.x + i, item)) return;
+            }
+            for (let i = -n; i <= n; i++) {
+                if (this.tryToCough(monster.y + i, monster.x - n, item)) return;
+                if (this.tryToCough(monster.y + i, monster.x + n, item)) return;
+            }
+        }
+
+        // 配置できなかった場合はアイテムを破棄（メモリリーク防止）
+        // （実際にはJSのGCが処理するが、明示的に何もしない）
+    }
+
+    // アイテム配置を試みる (spechit.c try_to_cough)
+    tryToCough(y, x, item) {
+        // 範囲外チェック
+        if (y < 1 || y >= 23 || x < 0 || x >= 80) {
+            return false;
+        }
+
+        const tile = this.level.getTile(x, y);
+
+        // 配置可能な床タイルで、かつアイテム・階段・罠がない場所
+        if ((tile === '.' || tile === '#' || tile === '+') &&
+            !this.items.some(i => i.x === x && i.y === y) &&
+            tile !== '%' &&
+            !this.trapManager.traps.some(t => t.col === x && t.row === y)) {
+
+            item.x = x;
+            item.y = y;
+            this.items.push(item);
+            return true;
+        }
+
+        return false;
+    }
+
     waitForRanking() {
+
         const handleKey = (e) => {
             if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter') {
                 document.removeEventListener('keydown', handleKey);

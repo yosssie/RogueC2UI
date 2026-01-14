@@ -16,6 +16,7 @@ export class Player {
         this.baseStr = str; // 基本筋力
         this.str = str;     // 現在の筋力（補正込み）
         this.maxStr = str;  // 最大基本筋力
+        this.lastRingStrBonus = 0; // 前回の指輪ボーナス（updateStrength用）
         this.armor = 4;
         this.level = 1;
         this.exp = 0;
@@ -99,8 +100,16 @@ export class Player {
     }
 
     updateStrength(bonus) {
-        this.str = this.baseStr + bonus;
-        // 毒などでbaseStrが下がっている場合も考慮
+        // 前回の指輪ボーナスを引く
+        if (this.lastRingStrBonus !== undefined) {
+            this.str -= this.lastRingStrBonus;
+        }
+
+        // 新しい指輪ボーナスを足す
+        this.str += bonus;
+        this.lastRingStrBonus = bonus;
+
+        // 最低値は1
         if (this.str < 1) this.str = 1;
     }
 
@@ -283,6 +292,8 @@ export class Player {
     }
 
     updateStats() {
+        console.log(`[updateStats] BEGIN str=${this.str}, maxStr=${this.maxStr}`);
+
         // オリジナルRogue準拠: AC = 基本AC + エンチャント値 (invent.c get_armor_class)
         if (this.equippedArmor) {
             const baseAC = this.equippedArmor.value || 0;
@@ -291,6 +302,23 @@ export class Player {
         } else {
             this.armor = 0; // 素っ裸は0
         }
+
+        // ステータスバーの表示更新 (print_stats)
+        const statusLevel = document.getElementById('status-level');
+        const statusGold = document.getElementById('status-gold');
+        const statusHp = document.getElementById('status-hp');
+        const statusStr = document.getElementById('status-str');
+        const statusArm = document.getElementById('status-arm');
+        const statusExp = document.getElementById('status-exp');
+
+        if (statusLevel) statusLevel.textContent = `Level: ${this.level}`;
+        if (statusGold) statusGold.textContent = `Gold: ${this.gold}`;
+        if (statusHp) statusHp.textContent = `Hp: ${this.hp}(${this.maxHp})`;
+        if (statusStr) statusStr.textContent = `Str: ${this.str}(${this.maxStr})`;
+        if (statusArm) statusArm.textContent = `Arm: ${this.armor}`;
+        if (statusExp) statusExp.textContent = `Exp: ${this.level}/${this.exp}`;
+
+        console.log(`[updateStats] END str=${this.str}, maxStr=${this.maxStr}`);
     }
 
     canSeeInvisible() {
