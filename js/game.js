@@ -2733,7 +2733,8 @@ export class Game {
                 } else {
                     // 修正: Mesg[19] ("%s%sは命中した") だと「スライムは命中した」になってしまうため、
                     // Mesg[23] ("%sの攻撃は命中した") を使用して「スライムの攻撃は命中した」にする
-                    this.display.showMessage(Mesg[23].replace('%s', attacker.name) + `(${displayDamage}ダメージ)`);
+                    const dmgMsg = displayDamage > 0 ? `(${displayDamage}ダメージ)` : '';
+                    this.display.showMessage(Mesg[23].replace('%s', attacker.name) + dmgMsg);
                 }
 
                 this.player.takeDamage(damage, isFlame); // 炎の場合はアーマー軽減(AC*3%)を無視(既に減算済み)

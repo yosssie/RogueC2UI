@@ -134,9 +134,10 @@ export class Player {
 
     // Original Rogue (v5.4.4) Logic: AC * 3 % reduction
     getActualDamage(damage) {
+        if (damage <= 0) return 0;
         const reductionPercent = this.armor * 3;
         const reduction = Math.floor(damage * reductionPercent / 100);
-        return Math.max(1, damage - reduction);
+        return Math.max(0, damage - reduction);
     }
 
     takeDamage(damage, ignoreArmor = false) {
