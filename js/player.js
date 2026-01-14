@@ -176,15 +176,26 @@ export class Player {
         }
     }
 
+    // オリジナルRogueの経験値テーブル (level.c level_points)
+    // 次のレベル（インデックス+2）になるために必要な経験値
+    static LEVEL_POINTS = [
+        10, 20, 40, 80, 160, 320, 640, 1300, 2600, 5200,
+        10000, 20000, 40000, 80000, 160000, 320000, 1000000,
+        3333333, 6666666, 99900000 // MAX
+    ];
+
+    // 指定レベルに到達するために必要な経験値を取得
+    static getLevelThreshold(level) {
+        if (level <= 1) return 0;
+        const index = level - 2;
+        if (index < 0) return 0;
+        if (index >= Player.LEVEL_POINTS.length) return Player.LEVEL_POINTS[Player.LEVEL_POINTS.length - 1];
+        return Player.LEVEL_POINTS[index];
+    }
+
     // 次のレベルに必要な経験値を計算
-    // Lv1->2: 10, Lv2->3: 20, Lv3->4: 40, ...
     getExpForNextLevel() {
-        if (this.level === 1) return 10;
-        // level 2以降: 10 * 2^(level-1) ?
-        // e_levels[] = {10, 20, 40, 80, ...}
-        // index 0 (Lv1->2) -> 10
-        // index 1 (Lv2->3) -> 20
-        return 10 * Math.pow(2, this.level - 1);
+        return Player.getLevelThreshold(this.level + 1);
     }
 
     levelUp() {

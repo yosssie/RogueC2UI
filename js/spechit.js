@@ -117,34 +117,95 @@ export class SpecialHit {
     }
 
     static drainLife(game) {
-        // 力維持の指輪では防げない
+        // オリジナルRogue準拠: spechit.c drain_life
 
-        if (Math.random() < 0.6) return; // 60%失敗
+        // 60%失敗、または MaxHp <= 30、または HP < 10 なら失敗
+        if (Math.random() < 0.6 || game.player.maxHp <= 30 || game.player.hp < 10) return;
 
-        game.display.showMessage(Mesg[208]);
-        game.player.maxHp--;
-        game.player.hp--;
-        if (game.player.hp < 1) game.player.hp = 1;
-        if (game.player.maxHp < 1) game.player.maxHp = 1;
+        // 力維持の指輪チェック
+        const sustainStrength = game.player.inventory.some(item =>
+            item.type === 'ring' && item.id === 'ring_sustain_str' && item.equipped
+        );
+
+        const n = Math.floor(Math.random() * 3) + 1; // 1, 2, 3
+
+        let msgShown = false;
+
+        // n=2以外 (1,3): HP減少
+        if (n !== 2) {
+            game.display.showMessage(Mesg[208]);
+            msgShown = true;
+
+            game.player.maxHp--;
+            game.player.hp--;
+            if (game.player.maxHp < 1) game.player.maxHp = 1;
+            if (game.player.hp < 1) game.player.hp = 1;
+        }
+
+        // n=1以外 (2,3): Str減少
+        if (n !== 1) {
+            if (!sustainStrength) {
+                if (!msgShown) {
+                    game.display.showMessage(Mesg[208]);
+                    msgShown = true;
+                }
+                if (game.player.str > 3) {
+                    game.player.str--;
+                    // 50%で最大Strも減る
+                    if (Math.random() < 0.5) {
+                        game.player.maxStr--;
+                    }
+                    game.player.updateStats();
+                }
+            }
+        }
     }
 
     static dropLevel(game) {
-        if (Math.random() < 0.8 || game.player.exp <= 5) return;
+        // オリジナルRogue spechit.c drop_level 完全移植
+
+        // 1. 80%の確率で失敗、またはレベル5以下なら無効
+        // (Rogueソースの rogue.exp はレベルのこと)
+        if (Math.random() < 0.8 || game.player.level <= 5) return;
 
         game.display.showMessage('エネルギーを吸い取られた気がする。');
 
-        if (game.player.level > 1) {
-            game.player.level--;
-            // 前のレベルの基準値までExpを下げる（簡易計算）
-            game.player.exp = (game.player.level - 1) * 10;
+        const currentLevel = game.player.level;
+        const targetLevel = currentLevel - 1;
 
-            const hpLoss = Math.floor(Math.random() * 5) + 1;
-            game.player.maxHp -= hpLoss;
-            if (game.player.maxHp < 1) game.player.maxHp = 1;
-            if (game.player.hp > game.player.maxHp) game.player.hp = game.player.maxHp;
+        // 2. 経験値を減少させる
+        // 新しい経験値 = (レベル-1の下限経験値) - rand(9, 29)
+        // Playerクラスのテーブルを使用
+        const newExpThreshold = game.player.constructor.getLevelThreshold(targetLevel);
 
-            game.display.showMessage(`レベルが ${game.player.level} に下がってしまった！`);
+        const loss = Math.floor(Math.random() * 21) + 9; // 9〜29
+        game.player.exp = Math.max(0, newExpThreshold - loss);
+
+        // 3. レベルを下げる
+        game.player.level = targetLevel;
+
+        // 4. HPを下げる (spechit.c: hp_raise()分減らす)
+        // hp_raise() は 3〜10 (wizardモード以外)
+        const hpLoss = Math.floor(Math.random() * 8) + 3;
+
+        game.player.maxHp -= hpLoss;
+        if (game.player.maxHp < 1) game.player.maxHp = 1;
+
+        game.player.hp -= hpLoss;
+
+        // 現在HPが1未満にならないように修正（オリジナル: if ((rogue.hp_current -= hp) <= 0) rogue.hp_current = 1;）
+        if (game.player.hp < 1) game.player.hp = 1;
+
+        // 最大HPを超えていたら補正（オリジナルにはないが、論理的にありえないので安全策、あるいは減少後の最大HPに合わせて下げるべき）
+        // オリジナルでは maxHp から引いているので、現在のhpがmaxHpより大きい状態はありうる（hpも引くので）。
+        if (game.player.hp > game.player.maxHp) {
+            game.player.hp = game.player.maxHp;
         }
+
+        // 5. メッセージ
+        // オリジナルでは add_exp(1) を呼んで "Welcome to level N" が出るが、
+        // ここではレベルダウンメッセージを出す
+        game.display.showMessage(`レベルが ${game.player.level} に下がってしまった！`);
     }
 
     static stealGold(game, monster) {
