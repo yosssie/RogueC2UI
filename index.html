@@ -13,8 +13,23 @@
 
 <body>
     <div id="game-container">
-        <div id="title-screen" class="screen active">
-            <pre id="title-art">
+        <div id="game-screen" class="screen active">
+            <div id="game-layout">
+                <!-- 左パネル: メインゲーム画面 -->
+                <div id="left-panel">
+                    <div id="message-area">
+                        <ul id="message-log">
+                            <li class="old-message"></li>
+                            <li class="old-message"></li>
+                            <li class="old-message"></li>
+                            <li class="current-message">ようこそ、勇敢なる冒険者よ。</li>
+                        </ul>
+                    </div>
+
+                    <div id="game-main">
+                        <!-- タイトル表示用 -->
+                        <div id="title-content" class="game-view active">
+                            <pre id="title-art">
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
 ┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
@@ -37,24 +52,18 @@
 ┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
 ┃　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-            </pre>
-        </div>
+                            </pre>
+                        </div>
 
-        <div id="game-screen" class="screen">
-            <div id="game-layout">
-                <!-- 左パネル: メインゲーム画面 -->
-                <div id="left-panel">
-                    <div id="message-area">
-                        <ul id="message-log">
-                            <li class="old-message"></li>
-                            <li class="old-message"></li>
-                            <li class="old-message"></li>
-                            <li class="current-message">ようこそ、勇敢なる冒険者よ。</li>
-                        </ul>
-                    </div>
+                        <!-- ダンジョン表示用 -->
+                        <div id="dungeon-content" class="game-view">
+                            <pre id="dungeon-display"></pre>
+                        </div>
 
-                    <div id="game-main">
-                        <pre id="dungeon-display"></pre>
+                        <!-- 墓石表示用 -->
+                        <div id="gameover-content" class="game-view">
+                            <pre id="tombstone-display"></pre>
+                        </div>
                     </div>
 
                     <div id="status-bar">

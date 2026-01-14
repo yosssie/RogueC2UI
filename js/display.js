@@ -4,8 +4,15 @@
 
 export class Display {
     constructor() {
-        this.titleScreen = document.getElementById('title-screen');
+        // メイン画面は常に表示
         this.gameScreen = document.getElementById('game-screen');
+
+        // game-main内のビュー
+        this.titleContent = document.getElementById('title-content');
+        this.dungeonContent = document.getElementById('dungeon-content');
+        this.gameoverContent = document.getElementById('gameover-content');
+
+        // その他の画面（後で対応）
         this.menuScreen = document.getElementById('menu-screen');
         this.configScreen = document.getElementById('config-screen');
         this.victoryScreen = document.getElementById('victory-screen');
@@ -13,6 +20,7 @@ export class Display {
 
         this.messageLog = document.getElementById('message-log');
         this.dungeonDisplay = document.getElementById('dungeon-display');
+        this.tombstoneDisplay = document.getElementById('tombstone-display');
         this.inventoryList = document.getElementById('inventory-list');
 
         this.statusLevel = document.getElementById('status-level');
@@ -141,52 +149,23 @@ Mon:${nearbyMonsters}`;
     }
 
     showScreen(screenName) {
-        // 全画面を非表示（静的な画面）
-        [this.titleScreen, this.gameScreen, this.menuScreen, this.configScreen, this.victoryScreen, this.sellingScreen].forEach(screen => {
-            if (screen) screen.classList.remove('active');
-        });
+        // game-main内のビュー切り替え
+        // まず全てのビューを非表示
+        this.titleContent.classList.remove('active');
+        this.dungeonContent.classList.remove('active');
+        this.gameoverContent.classList.remove('active');
 
-        // 動的に作成された画面も非表示
-        const gameoverScreen = document.getElementById('gameover-screen');
-        const rankingScreen = document.getElementById('ranking-screen');
-        if (gameoverScreen) gameoverScreen.classList.remove('active');
-        if (rankingScreen) rankingScreen.classList.remove('active');
-
-        // 指定画面を表示
-        switch (screenName) {
-            case 'title':
-                this.titleScreen.classList.add('active');
-                break;
-            case 'game':
-                this.gameScreen.classList.add('active');
-                break;
-            case 'menu':
-                this.menuScreen.classList.add('active');
-                break;
-            case 'config':
-                this.configScreen.classList.add('active');
-                break;
-            case 'victory':
-                this.victoryScreen.classList.add('active');
-                break;
-            case 'selling':
-                this.sellingScreen.classList.add('active');
-                break;
-            case 'gameover':
-                // gameover-screenは動的に作成されるので、存在確認
-                const gameoverScreen = document.getElementById('gameover-screen');
-                if (gameoverScreen) {
-                    gameoverScreen.classList.add('active');
-                }
-                break;
-            case 'ranking':
-                // ranking-screenは動的に作成されるので、存在確認
-                const rankingScreen = document.getElementById('ranking-screen');
-                if (rankingScreen) {
-                    rankingScreen.classList.add('active');
-                }
-                break;
+        // 指定されたビューを表示
+        if (screenName === 'title') {
+            this.titleContent.classList.add('active');
+        } else if (screenName === 'game') {
+            this.dungeonContent.classList.add('active');
+        } else if (screenName === 'gameover') {
+            this.gameoverContent.classList.add('active');
         }
+
+        // その他の画面は後で対応
+        // menu, config, victory, selling, ranking等
     }
 
     updateMenuCursor(index) {

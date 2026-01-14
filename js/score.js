@@ -34,37 +34,44 @@ export class ScoreManager {
             player.gold = Math.floor(player.gold * 0.9);
         }
 
-        // 死因メッセージの生成
+        // 死因メッセージの生成（オリジナルのRogueと同じMesg配列を使用）
         let causeText = '';
         let causeDetail = '';
+        let cause1 = '';  // 第一要因
+        let cause2 = '';  // 第二要因
 
         if (other !== null && other !== this.DEATH_CAUSES.MONSTER) {
-            // その他の死因
+            // その他の死因（os1とos2配列に対応）
+            const os1 = ['', Mesg[168], Mesg[169], Mesg[170], Mesg[171]];
+            const os2 = ['', Mesg[172], Mesg[173], Mesg[174], Mesg[175]];
+
+            cause1 = os1[other] || '';
+            cause2 = os2[other] || '';
+            causeText = cause1 + cause2;
+
+            // causeDetailは短い形式
             switch (other) {
                 case this.DEATH_CAUSES.HYPOTHERMIA:
-                    causeText = '凍死した';
                     causeDetail = '凍死';
                     break;
                 case this.DEATH_CAUSES.STARVATION:
-                    causeText = '餓死した';
                     causeDetail = '餓死';
                     break;
                 case this.DEATH_CAUSES.POISON_DART:
-                    causeText = '毒ダーツの罠で死んだ';
                     causeDetail = '毒ダーツ';
                     break;
                 case this.DEATH_CAUSES.QUIT:
-                    causeText = 'ゲームを終了した';
                     causeDetail = '中断';
                     break;
                 case this.DEATH_CAUSES.WIN:
-                    causeText = 'アミュレットを持って脱出した！';
                     causeDetail = '勝利';
                     break;
             }
         } else if (monster) {
             // モンスターに殺された
-            causeText = `${monster.name}に殺された`;
+            cause1 = monster.name;
+            cause2 = Mesg[176]; // "と戦いて死す"
+            causeText = cause1 + cause2;
             causeDetail = monster.name;
         }
 
@@ -73,7 +80,7 @@ export class ScoreManager {
 
         // 墓石表示 (QUITと勝利以外)
         if (other !== this.DEATH_CAUSES.QUIT && other !== this.DEATH_CAUSES.WIN) {
-            this.showTombstone(player.name, causeText, player.gold, rank);
+            this.showTombstone(player.name, cause1, cause2, player.gold, rank);
         } else if (other === this.DEATH_CAUSES.WIN) {
             this.showVictory(rank);
         } else {
@@ -83,9 +90,36 @@ export class ScoreManager {
     }
 
     /**
+     * 文字列の表示幅を計算（全角=2、半角=1）
+     */
+    getTextWidth(text) {
+        let width = 0;
+        for (let i = 0; i < text.length; i++) {
+            // 全角文字（ASCII以外）は幅2、半角は幅1
+            width += text.charCodeAt(i) > 127 ? 2 : 1;
+        }
+        return width;
+    }
+
+    /**
+     * 指定した幅に収まるようにテキストを切り詰める
+     */
+    truncateToWidth(text, maxWidth) {
+        let width = 0;
+        let result = '';
+        for (let i = 0; i < text.length; i++) {
+            const charWidth = text.charCodeAt(i) > 127 ? 2 : 1;
+            if (width + charWidth > maxWidth) break;
+            result += text[i];
+            width += charWidth;
+        }
+        return result;
+    }
+
+    /**
      * 墓石表示 (score.c killed_by 内のスカル表示)
      */
-    showTombstone(playerName, cause, gold, rank) {
+    showTombstone(playerName, cause1, cause2, gold, rank) {
         const display = this.game.display;
 
         // 墓石ASCIIアート (score.c: line 57-71)
@@ -96,55 +130,123 @@ export class ScoreManager {
             "/              \\",
             "/                \\",
             "/                  \\",
-            "|                  |",
-            "|                  |",
-            "|                  |",
-            "|                  |",
-            "|                  |",
-            "|                  |",
-            "*|     *  *  *      | *",
+            "|                  |", // line 6, Y=8
+            "|                  |", // line 7, Y=9 (Name)
+            "|                  |", // line 8, Y=10 (Gold)
+            "|                  |", // line 9, Y=11 (Cause1)
+            "|                  |", // line 10, Y=12 (Cause2)
+            "|                  |", // line 11, Y=13
+            "*|     *  *  *      | *", // line 12, Y=14 (Year)
             "________)/\\_//(\\/(/)\\)/\\//\\/|_)_______"
         ];
 
         // 各行のX座標（中央揃え用、ROGUE_COLUMNS=80として）
         const xpos = [35, 34, 33, 32, 31, 30, 30, 30, 30, 30, 30, 30, 29, 21];
 
-        // 墓石を中央に配置
-        let container = document.getElementById('gameover-screen');
-        if (!container) {
-            this.createGameOverScreen();
-            container = document.getElementById('gameover-screen');
-        }
-
         // ゲーム画面をクリアして墓石を表示
         display.showScreen('gameover');
 
-        const tombDiv = document.getElementById('tombstone');
-        if (tombDiv) {
-            // 各行を個別に配置（オリジナルのmvaddstr_rogue相当）
-            let html = '<div style="font-size: 1.2rem; font-family: \'Noto Sans Mono\', monospace; color: #888; line-height: 1.2; position: relative; width: 80ch; margin: 0 auto;">';
+        // 画面サイズ（ダンジョンと同じ80x24）
+        const width = 80;
+        const height = 24;
 
-            // 墓石の各行を表示（Y座標: i+3）
-            tombstone.forEach((line, i) => {
-                const y = i + 3;
-                const x = xpos[i];
-                html += `<div style="position: absolute; top: ${y * 1.2}rem; left: ${x}ch; white-space: pre;">${line}</div>`;
-            });
+        // 空の画面を作成
+        const screen = Array(height).fill(null).map(() => Array(width).fill(' '));
 
-            // テキスト情報を中央揃えで表示（center関数相当）
-            const year = new Date().getFullYear();
-            html += `<div style="position: absolute; top: ${9 * 1.2}rem; width: 100%; text-align: center; color: #fff;">${playerName}</div>`;
-            html += `<div style="position: absolute; top: ${10 * 1.2}rem; width: 100%; text-align: center; color: #fff;">${gold}ゴールド</div>`;
-            html += `<div style="position: absolute; top: ${12 * 1.2}rem; width: 100%; text-align: center; color: #888;">${cause}</div>`;
-            html += `<div style="position: absolute; top: ${14 * 1.2}rem; width: 100%; text-align: center; color: #888;">${year}</div>`;
+        // 墓石の各行を配置（Y座標: i+2で上部に配置）
+        tombstone.forEach((line, i) => {
+            const y = i + 2;
+            const x = xpos[i];
+            for (let j = 0; j < line.length; j++) {
+                if (y < height && x + j < width) {
+                    screen[y][x + j] = line[j];
+                }
+            }
+        });
 
-            html += '</div>';
+        // テキスト情報を墓石の空白を埋める形で配置
+        const year = new Date().getFullYear();
+        const tombInsideWidth = 18; // 墓石の内側の幅（半角文字数）
+        // 墓石の内側左端は、Y=8-13では xpos[6]+1 = 30+1 = 31
+        // Y=14では xpos[12]+2 = 29+2 = 31 (*| の次)
+        const tombLeftIndex = 31;
 
-            // メッセージ
-            html += '<div style="text-align: center; margin-top: 2rem; color: #888;">Aボタンでランキングを表示</div>';
+        // 墓石の内側にテキストを配置する関数
+        const placeTextInTomb = (y, text) => {
+            let displayedText = text;
 
-            tombDiv.innerHTML = html;
+            // 1. 幅計算と切り詰め
+            let textWidth = this.getTextWidth(displayedText);
+            if (textWidth > tombInsideWidth) {
+                displayedText = this.truncateToWidth(displayedText, tombInsideWidth);
+                textWidth = this.getTextWidth(displayedText);
+            }
+
+            // 全角文字数をカウント
+            let fullWidthCount = 0;
+            for (let i = 0; i < displayedText.length; i++) {
+                if (displayedText.charCodeAt(i) > 127) fullWidthCount++;
+            }
+
+            // 2. パディング計算
+            // 環境によっては全角文字の幅が半角x2より狭くなるため、スペース不足で表示がへこむ（枠が左にずれる）現象が起きる。
+            // 係数0.35で補正してスペースを追加する。
+            const adjust = Math.round(fullWidthCount * 0.35);
+
+            const totalSpaces = tombInsideWidth - textWidth + adjust;
+            const leftSpaces = Math.floor(totalSpaces / 2);
+            /* 右側は残りで埋める */
+            const rightSpaces = totalSpaces - leftSpaces;
+
+            // 3. 挿入する文字配列を作成
+            const chars = [];
+            for (let i = 0; i < leftSpaces; i++) chars.push(' ');
+            for (let i = 0; i < displayedText.length; i++) chars.push(displayedText[i]);
+            for (let i = 0; i < rightSpaces; i++) chars.push(' ');
+
+            // 4. screen[y] の tombLeftIndex から 18要素を削除し、chars を挿入
+            //    screen配列の要素数が増えるが、表示上の幅が合致するはず
+            if (y >= 0 && y < height) {
+                screen[y].splice(tombLeftIndex, 18, ...chars);
+            }
+        };
+
+        // 名前（Y=9）
+        placeTextInTomb(9, playerName);
+
+        // ゴールド（Y=10）
+        placeTextInTomb(10, `${gold} Au`);
+
+        // 第一要因（Y=11）
+        placeTextInTomb(11, cause1);
+
+        // 第二要因（Y=12）
+        placeTextInTomb(12, cause2);
+
+        // 年号（Y=14）
+        placeTextInTomb(14, String(year));
+
+        // メッセージ（Y=18、墓石の下）
+        const msg = "-- Press Button A to see ranking --";
+        const msgX = 40 - Math.floor(msg.length / 2);
+        for (let i = 0; i < msg.length; i++) {
+            if (18 < height && msgX + i < width) {
+                screen[18][msgX + i] = msg[i];
+            }
         }
+
+        // 画面を文字列に変換
+        let output = '';
+        for (let y = 0; y < height; y++) {
+            output += screen[y].join('') + '\n';
+        }
+
+        // tombstone-displayに設定
+        display.tombstoneDisplay.textContent = output;
+
+        // メッセージエリアにメッセージを表示
+        const tombstoneMessage = `${Mesg[177]} ${Mesg[178]}`;  // "安らかに 眠れ"
+        display.showMessage(tombstoneMessage);
     }
 
     /**
@@ -162,24 +264,22 @@ export class ScoreManager {
 
         const tombDiv = document.getElementById('tombstone');
         if (tombDiv) {
-            if (tombDiv) {
-                // オリジナルRogueのメッセージ (mesg_J.js: 182-185)
-                // 中央揃えで表示
-                let html = '<div style="text-align: center; color: #ff0; font-size: 1.2rem; margin-top: 5rem; line-height: 2;">';
-                html += `<div>${Mesg[182]}</div>`;
-                html += `<div>${Mesg[183]}</div>`;
-                html += `<div>${Mesg[184]}</div>`;
-                html += `<div>${Mesg[185]}</div>`;
+            // オリジナルRogueのメッセージ (mesg_J.js: 182-185)
+            // 中央揃えで表示
+            let html = '<div style="text-align: center; color: #ff0; font-size: 1.2rem; margin-top: 5rem; line-height: 2;">';
+            html += `<div>${Mesg[182]}</div>`;
+            html += `<div>${Mesg[183]}</div>`;
+            html += `<div>${Mesg[184]}</div>`;
+            html += `<div>${Mesg[185]}</div>`;
 
-                if (rank >= 0 && rank < 10) {
-                    html += `<div style="color: #fff; margin-top: 3rem; font-weight: bold;">第${rank + 1}位にランクイン！</div>`;
-                }
-
-                html += '<div style="margin-top: 4rem; color: #888;">Aボタンでランキングを表示</div>';
-                html += '</div>';
-
-                tombDiv.innerHTML = html;
+            if (rank >= 0 && rank < 10) {
+                html += `<div style="color: #fff; margin-top: 3rem; font-weight: bold;">第${rank + 1}位にランクイン！</div>`;
             }
+
+            html += '<div style="margin-top: 4rem; color: #888;">Aボタンでランキングを表示</div>';
+            html += '</div>';
+
+            tombDiv.innerHTML = html;
         }
     }
 
