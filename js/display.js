@@ -43,6 +43,14 @@ export class Display {
         // フォントサイズ変更用のクラスリスト
         this.zoomClasses = ['zoom-medium', 'zoom-small', 'zoom-large'];
         this.currentZoomIndex = 0;
+
+        // タイトル画面の■を緑色+背景色ブロックにする
+        const titleArt = document.getElementById('title-art');
+        if (titleArt) {
+            // 文字色と背景色を同じにして完全なブロックに見せる
+            const color = '#ffffff'; // 白
+            titleArt.innerHTML = titleArt.innerHTML.replaceAll('■', `<span style="color:${color}; background-color:${color}">■</span>`);
+        }
     }
 
     toggleDebugMode() {
