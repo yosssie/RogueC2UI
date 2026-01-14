@@ -314,7 +314,7 @@ export class ScoreManager {
         // 勝利以外の場合、階層情報を付加
         if (other !== this.DEATH_CAUSES.WIN) {
             // 魔除けあ持っているかチェック
-            const hasAmulet = player.items.some(item => item.type === 'amulet');
+            const hasAmulet = player.inventory.some(item => item.type === 'amulet');
             if (hasAmulet) {
                 fullReason += Mesg[189]; // "魔除けを手に、"
             }
@@ -422,18 +422,20 @@ export class ScoreManager {
         } else {
             scores.forEach((score, index) => {
                 // ランク番号（1-10）
-                // 右詰め2桁 + 前後スペース調整
+                // ランク番号 (sprintf(" %2d", rank+1))
+                // 先頭スペース1 + 2桁右詰め = 計3文字
                 const rankNum = index + 1;
-                const rankStr = rankNum === 10 ? '10' : ` ${rankNum}`;
+                const rankPart = ' ' + rankNum.toString().padStart(2, ' ');
 
                 // インデント: 26文字
-                let line = '                          ' + rankStr + '   ';
+                let line = '                          ' + rankPart + '   ';
 
-                // スコア（右詰め7桁）
-                const goldStr = score.gold.toString().padStart(7, ' ');
+                // スコア (sprintf("%6ld", gold)) -> 6桁右詰め
+                const goldStr = score.gold.toString().padStart(6, ' ');
                 line += goldStr + '   ';
 
-                // 名前と死因
+                // 名前と死因 (sprintf("%s: ", name))
+                // format: " %2d   %6ld   %s: "
                 const nameAndCause = `${score.name}: ${score.cause}`;
                 line += nameAndCause;
 
