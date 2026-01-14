@@ -308,13 +308,44 @@ export class ScoreManager {
         const player = this.game.player;
         const scores = this.getScores();
 
+        // 詳細な死因メッセージ生成 (score.c insert_score 準拠)
+        let fullReason = "";
+
+        // 勝利以外の場合、階層情報を付加
+        if (other !== this.DEATH_CAUSES.WIN) {
+            // 魔除けあ持っているかチェック
+            const hasAmulet = player.items.some(item => item.type === 'amulet');
+            if (hasAmulet) {
+                fullReason += Mesg[189]; // "魔除けを手に、"
+            }
+            fullReason += Mesg[190]; // "地下"
+            fullReason += `${this.game.currentFloor}`;
+            fullReason += Mesg[191]; // "階にて"
+        }
+
+        let deathMsg = "";
+        if (other !== null && other !== this.DEATH_CAUSES.MONSTER) {
+            // その他の死因のメッセージ (mesg_J.js 192-196)
+            switch (other) {
+                case this.DEATH_CAUSES.HYPOTHERMIA: deathMsg = Mesg[192]; break; // 寒さにより死す
+                case this.DEATH_CAUSES.STARVATION: deathMsg = Mesg[193]; break; // 飢えにより死す
+                case this.DEATH_CAUSES.POISON_DART: deathMsg = Mesg[194]; break; // 毒矢により死す
+                case this.DEATH_CAUSES.QUIT: deathMsg = Mesg[195]; break; // 逃亡す
+                case this.DEATH_CAUSES.WIN: deathMsg = Mesg[196]; break; // 生きて帰りたる勇者
+            }
+        } else if (monster) {
+            deathMsg = `${monster.name}${Mesg[197]}`; // "XXと戦いて死す"
+        }
+
+        fullReason += deathMsg + "。";
+
         // 新しいスコアエントリ
         const newScore = {
             name: player.name,
             gold: player.gold,
             level: this.game.currentFloor,
             maxLevel: this.game.currentFloor, // 本来は最大到達階層を記録
-            cause: causeDetail,
+            cause: fullReason, // 詳細メッセージを保存
             isWin: (other === this.DEATH_CAUSES.WIN),
             date: new Date().toISOString(),
             timestamp: Date.now()
@@ -359,52 +390,67 @@ export class ScoreManager {
         const scores = this.getScores();
         const display = this.game.display;
 
-        // ランキング画面を作成
-        let rankingScreen = document.getElementById('ranking-screen');
-        if (!rankingScreen) {
-            const container = document.getElementById('game-container');
-            rankingScreen = document.createElement('div');
-            rankingScreen.id = 'ranking-screen';
-            rankingScreen.className = 'screen';
-            container.appendChild(rankingScreen);
-        }
+        // ランキング画面を表示
+        display.showScreen('ranking');
 
-        // オリジナルRogueスタイル（シンプル）
-        let html = '<div style="font-size: 1.2rem; font-family: \'Noto Sans Mono\', monospace; color: #fff; padding: 2rem; line-height: 1.5;">';
+        // 表示テキスト構築 (innerHTMLを使用することで行ごとのスタイル適用を可能にする)
+        let html = '';
 
-        // タイトル（3行目、中央）
-        html += '<div style="text-align: center; margin-bottom: 2rem;">Top Ten Rogueists</div>';
+        // ヘルパー：中央揃え用のスペース生成
+        const getCenterPadding = (text) => {
+            const width = 80; // 画面幅
+            const textWidth = this.getTextWidth(text);
+            const padding = Math.max(0, Math.floor((width - textWidth) / 2));
+            return ' '.repeat(padding);
+        };
 
-        // ヘッダー（6行目）
-        html += '<div style="margin-bottom: 1rem;">Rank   Score   Name</div>';
+        // 上部余白
+        html += '\n'.repeat(2);
 
-        // スコア一覧（8行目から）
+        // タイトル
+        const title = Mesg[187];
+        html += getCenterPadding(title) + title + '\n\n\n';
+
+        // ヘッダー
+        const header = Mesg[188];
+        html += '                          ' + header + '\n\n';
+
+        // スコア一覧
         if (scores.length === 0) {
-            html += '<div style="margin-top: 2rem; color: #888;">(まだスコアがありません)</div>';
+            const noScore = "(まだスコアがありません)";
+            html += getCenterPadding(noScore) + noScore + '\n';
         } else {
             scores.forEach((score, index) => {
                 // ランク番号（1-10）
-                const rankNum = index === 9 ? '10' : ` ${index + 1}`;
+                // 右詰め2桁 + 前後スペース調整
+                const rankNum = index + 1;
+                const rankStr = rankNum === 10 ? '10' : ` ${rankNum}`;
+
+                // インデント: 26文字
+                let line = '                          ' + rankStr + '   ';
 
                 // スコア（右詰め7桁）
                 const goldStr = score.gold.toString().padStart(7, ' ');
+                line += goldStr + '   ';
 
                 // 名前と死因
                 const nameAndCause = `${score.name}: ${score.cause}`;
+                line += nameAndCause;
 
-                // 自分のスコアは反転表示（A_REVERSE相当）
-                const isHighlight = (index === highlightRank);
-                const style = isHighlight ? 'background-color: #fff; color: #000;' : '';
-
-                html += `<div style="${style}">${rankNum}   ${goldStr}   ${nameAndCause}</div>`;
+                // 自分のスコアは反転表示
+                if (index === highlightRank) {
+                    html += `<span style="background-color: #ccc; color: #000;">${line}</span>\n`;
+                } else {
+                    html += `${line}\n`;
+                }
             });
         }
 
-        html += '</div>';
-        html += '<div style="text-align: center; margin-top: 2rem; color: #888;">Aボタンでタイトルに戻る</div>';
+        html += '\n\n';
+        const footer = "Aボタンでタイトルに戻る";
+        html += getCenterPadding(footer) + footer;
 
-        rankingScreen.innerHTML = html;
-        display.showScreen('ranking');
+        display.rankingDisplay.innerHTML = html;
     }
 
     /**

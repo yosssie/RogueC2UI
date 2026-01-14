@@ -11,6 +11,7 @@ export class Display {
         this.titleContent = document.getElementById('title-content');
         this.dungeonContent = document.getElementById('dungeon-content');
         this.gameoverContent = document.getElementById('gameover-content');
+        this.rankingContent = document.getElementById('ranking-content');
 
         // その他の画面（後で対応）
         this.menuScreen = document.getElementById('menu-screen');
@@ -21,6 +22,7 @@ export class Display {
         this.messageLog = document.getElementById('message-log');
         this.dungeonDisplay = document.getElementById('dungeon-display');
         this.tombstoneDisplay = document.getElementById('tombstone-display');
+        this.rankingDisplay = document.getElementById('ranking-display');
         this.inventoryList = document.getElementById('inventory-list');
 
         this.statusLevel = document.getElementById('status-level');
@@ -154,6 +156,7 @@ Mon:${nearbyMonsters}`;
         this.titleContent.classList.remove('active');
         this.dungeonContent.classList.remove('active');
         this.gameoverContent.classList.remove('active');
+        this.rankingContent.classList.remove('active');
 
         // 指定されたビューを表示
         if (screenName === 'title') {
@@ -162,6 +165,8 @@ Mon:${nearbyMonsters}`;
             this.dungeonContent.classList.add('active');
         } else if (screenName === 'gameover') {
             this.gameoverContent.classList.add('active');
+        } else if (screenName === 'ranking') {
+            this.rankingContent.classList.add('active');
         }
 
         // その他の画面は後で対応

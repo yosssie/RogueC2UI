@@ -112,7 +112,8 @@ body {
     font-feature-settings: "liga" 0;
 }
 
-#tombstone-display {
+#tombstone-display,
+#ranking-display {
     color: #fff;
     text-align: left;
     font-family: 'Noto Sans Mono', monospace;
