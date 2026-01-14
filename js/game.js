@@ -156,7 +156,8 @@ export class Game {
 
         // ゲーム画面表示
         this.display.showScreen('game');
-        this.display.showMessage('ようこそ、運命の洞窟へ。イェンダーの魔除けを探し出せ!');
+        // オリジナルRogue準拠の開始メッセージ: "やあ、%s。 運命の洞窟へようこそ..."
+        this.display.showMessage(Mesg[10].replace('%s', this.player.name));
         this.updateDisplay();
 
         // ゲームループ開始
