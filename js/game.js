@@ -58,6 +58,7 @@ export class Game {
         this.partyRoom = -1; // 現在の階層のParty Room ID (-1: なし)
         this.debugMode = false; // デバッグモードフラグ（タイトル画面用）
         this.inGameDebugMode = false; // ゲーム中のデバッグモード
+        this.hungerMoveCounter = 0; // 空腹計算用カウンタ
 
         this.init();
     }
@@ -822,7 +823,6 @@ export class Game {
                     }
 
                     this.items.push(item);
-                    this.items.push(item);
                     itemsPlaced++;
                     placed = true;
                     console.log(`🎁 [Party Objects] Item ${i + 1} placed at (${c}, ${r}), type: ${type}`);
@@ -1462,10 +1462,36 @@ export class Game {
 
         // プレイヤーが生きている場合のみ空腹度処理
         if (this.player.hp > 0) {
-            let hungerAmount = 1 + this.ringManager.getHungerModifier();
-            const hungerMsg = this.player.updateHunger(Math.max(0, hungerAmount));
-            if (hungerMsg) {
-                this.display.showMessage(hungerMsg);
+            // 空腹計算のオリジナル再現
+            const eRings = this.ringManager.getHungerModifier();
+            let hungerDrop = 0;
+
+            switch (eRings) {
+                case 0:
+                    hungerDrop = 1;
+                    break;
+                case -1: // 遅消化1個
+                    hungerDrop = this.hungerMoveCounter; // 0 or 1 (平均0.5)
+                    break;
+                case 1: // 指輪1個
+                    hungerDrop = 1 + this.hungerMoveCounter; // 1 or 2 (平均1.5)
+                    break;
+                case 2: // 指輪2個
+                    hungerDrop = 2; // (平均2)
+                    break;
+                default: // -2以下 (遅消化x2) など
+                    if (eRings < -1) hungerDrop = 0;
+                    else hungerDrop = 1 + eRings; // 念のため
+                    break;
+            }
+
+            this.hungerMoveCounter ^= 1; // 0 <-> 1 Flip
+
+            if (hungerDrop > 0) {
+                const hungerMsg = this.player.updateHunger(hungerDrop);
+                if (hungerMsg) {
+                    this.display.showMessage(hungerMsg);
+                }
             }
 
             // HP自動回復 (move.c heal())
@@ -2209,8 +2235,26 @@ export class Game {
 
         const item = this.player.inventory[index];
 
+        // 装備中の呪われたアイテムは置けない
+        const isEquipped = (this.player.weapon === item ||
+            this.player.equippedArmor === item ||
+            this.player.leftRing === item ||
+            this.player.rightRing === item);
+
+        if (isEquipped && item.cursed) {
+            this.display.showMessage(Mesg[85]); // "呪われているので、それはできない！"
+            return false;
+        }
+
         // 装備中なら外す
         this.player.unequip(item);
+
+        // 指輪の状態を更新
+        if (item.type === 'ring') {
+            item.equipped = false;
+            item.equippedHand = null;
+            this.ringManager.ringStats();
+        }
 
         let droppedItem = item;
 
@@ -2376,10 +2420,36 @@ export class Game {
         const dx = this.targetDirection.x;
         const dy = this.targetDirection.y;
 
+        // 装備中の呪われたアイテムは投げられない
+        const isEquipped = (this.player.weapon === item ||
+            this.player.equippedArmor === item ||
+            this.player.leftRing === item ||
+            this.player.rightRing === item);
+
+        if (isEquipped && item.cursed) {
+            this.state = 'playing'; // ステートを戻す
+            this.display.showMessage(Mesg[85]); // "呪われているので、それはできない！"
+            this.updateDisplay();
+            return;
+        }
+
         let thrownItem = item;
 
-        // 装備中なら外す
-        this.player.unequip(item); // 装備しているものを投げると外れる
+        // 装備中（武器・防具・指輪）なら外す
+        // 注意: 投げ装備(throwEquip)の場合は、スタックがある限り外さないのでここには含めない
+        if (this.player.weapon === item ||
+            this.player.equippedArmor === item ||
+            this.player.leftRing === item ||
+            this.player.rightRing === item) {
+            this.player.unequip(item);
+        }
+
+        // 指輪の状態を更新
+        if (item.type === 'ring') {
+            item.equipped = false;
+            item.equippedHand = null;
+            this.ringManager.ringStats();
+        }
 
         // スタック処理: 1個だけ投げる
         if (item.quantity > 1) {
@@ -2494,20 +2564,23 @@ export class Game {
         // 3. 判定
         if (Math.random() * 100 < hitChance) {
             // 命中
-            this.display.showMessage(monster.name + Mesg[214]);
+            // this.display.showMessage(monster.name + Mesg[214]);
 
             // 拡張版: 杖の投擲効果（75%で発動）
             if (item.type === 'wand' && Math.random() < 0.75) {
+                this.display.showMessage(monster.name + Mesg[214]);
                 this.wandManager.zapMonster(monster, item.wandType);
                 return true;
             }
             // 拡張版: ポーションの投擲効果
             else if (item.type === 'potion') {
+                this.display.showMessage(monster.name + Mesg[214]);
                 this.potionMonster(monster, item.potionType);
                 return true;
             }
             // 通常のダメージ
             else {
+                this.display.showMessage(monster.name + Mesg[214] + `(${damage}ダメージ)`);
                 monster.takeDamage(damage);
                 if (monster.isDead()) {
                     this.display.showMessage(Mesg[24].replace('%s', monster.name));

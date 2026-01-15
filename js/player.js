@@ -304,6 +304,17 @@ export class Player {
             this.equippedArmor = null;
             this.updateStats();
         }
+        if (this.leftRing === item) {
+            this.leftRing = null;
+            this.updateStats(); // 指輪によるステータス変化（Str指輪など）があるかも
+        }
+        if (this.rightRing === item) {
+            this.rightRing = null;
+            this.updateStats();
+        }
+        if (this.throwEquip === item) {
+            this.throwEquip = null;
+        }
     }
 
     updateStats() {

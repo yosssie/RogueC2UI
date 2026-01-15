@@ -98,6 +98,10 @@ export class Display {
         if (rm.addStrength !== 0) rings.push(`Str${rm.addStrength > 0 ? '+' : ''}${rm.addStrength}`);
         if (rm.regeneration > 0) rings.push('Regen');
         if (rm.stealthy > 0) rings.push('Stlth');
+        if (rm.eRings !== 0) rings.push(`Dgtn:${rm.eRings}`); // 消化 (遅消化はマイナス)
+        if (rm.rTeleport) rings.push('Tel'); // テレポート
+        if (rm.autoSearch > 0) rings.push('Srch'); // 自動探索
+        if (rm.ringExp !== 0) rings.push(`Exp${rm.ringExp > 0 ? '+' : ''}${rm.ringExp}`); // 経験値
         const ringStr = rings.length > 0 ? rings.join(', ') : 'None';
 
         // 周囲のモンスター
@@ -516,29 +520,48 @@ Mon:${nearbyMonsters}`;
         // インベントリリストから選択中のアイテムの位置を取得
         const inventoryList = document.getElementById('inventory-list');
         const selectedItem = inventoryList?.querySelector('li.selected');
+        const allItems = inventoryList?.querySelectorAll('li'); // 全アイテム（足元含む）
         const rightPanel = document.getElementById('right-panel');
 
-        if (selectedItem && rightPanel) {
-            // 選択中のアイテムの位置を取得
+        if (selectedItem && rightPanel && allItems.length > 0) {
             const itemRect = selectedItem.getBoundingClientRect();
             const panelRect = rightPanel.getBoundingClientRect();
 
-            // サブメニューをインベントリパネルの左側に配置
-            // パネルの左端から70px右にずらして配置
-            const submenuWidth = 200; // submenu の幅（CSS で定義されている値）
+            // サブメニューの高さを取得するために一時的に表示（不可視）
+            submenu.style.visibility = 'hidden';
+            submenu.classList.remove('hidden');
+            const submenuHeight = submenu.offsetHeight;
+            const itemHeight = itemRect.height; // アイテム行の高さ
+
+            // インデックスと係数tを計算
+            const index = Array.from(allItems).indexOf(selectedItem);
+            const total = allItems.length;
+
+            // 係数 t (0.0:先頭 ～ 1.0:末尾)
+            const t = (total > 1) ? (index / (total - 1)) : 0;
+
+            // 位置補正計算 (線形補間)
+            // t=0 (先頭): offset=0 -> 上辺合わせ
+            // t=1 (末尾): offset=diff -> 下辺合わせ
+            const offset = (submenuHeight - itemHeight) * t;
+            const top = itemRect.top - offset;
+
+            submenu.style.top = top + 'px';
+
+            // 横位置: パネルの左端から70px右に配置
+            const submenuWidth = 200; // CSS定義値
             submenu.style.left = (panelRect.left - submenuWidth + 70) + 'px';
             submenu.style.right = 'auto';
 
-            // 選択中のアイテムと同じ高さに配置
-            submenu.style.top = itemRect.top + 'px';
+            // 表示状態にする
+            submenu.style.visibility = '';
         } else {
             // フォールバック: 渡された座標を使用
             submenu.style.left = 'auto';
             submenu.style.right = '19rem';
             submenu.style.top = y + 'px';
+            submenu.classList.remove('hidden');
         }
-
-        submenu.classList.remove('hidden');
     }
 
     hideSubMenu() {
