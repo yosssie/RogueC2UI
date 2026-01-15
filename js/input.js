@@ -8,6 +8,7 @@ export class InputManager {
         this.keyConfig = this.loadKeyConfig();
         this.rButtonPressed = false; // Rボタン(斜め移動モディファイア)の状態
         this.bButtonPressed = false; // Bボタン(ダッシュモディファイア)の状態
+        this.lButtonPressed = false; // Lボタン(投げ装備)の状態
         this.pressedKeys = new Set(); // 押されているキーのセット
     }
 
@@ -67,6 +68,8 @@ export class InputManager {
             this.handleSubMenuInput(e);
         } else if (this.game.state === 'targeting') {
             this.handleTargetingInput(e);
+        } else if (this.game.state === 'throw_equip_aiming') {
+            this.handleThrowEquipAimingInput(e);
         } else if (this.game.state === 'death_message') {
             this.handleDeathMessageInput(e);
         } else if (this.game.state === 'victory') {
@@ -131,6 +134,43 @@ export class InputManager {
         }
     }
 
+    handleThrowEquipAimingInput(e) {
+        const key = e.code;
+        e.preventDefault();
+
+        // キャンセル (Bボタン)
+        if (key === this.keyConfig.buttonB) {
+            this.game.cancelThrowEquipAiming();
+            return;
+        }
+
+        // 方向移動 (同時押し対応)
+        let dx = 0;
+        let dy = 0;
+
+        // pressedKeys をチェックして合成
+        if (this.pressedKeys.has(this.keyConfig.up) || this.pressedKeys.has('Numpad8')) dy -= 1;
+        if (this.pressedKeys.has(this.keyConfig.down) || this.pressedKeys.has('Numpad2')) dy += 1;
+        if (this.pressedKeys.has(this.keyConfig.left) || this.pressedKeys.has('Numpad4')) dx -= 1;
+        if (this.pressedKeys.has(this.keyConfig.right) || this.pressedKeys.has('Numpad6')) dx += 1;
+
+        // 斜め専用キーもサポート
+        if (this.pressedKeys.has(this.keyConfig.upLeft) || this.pressedKeys.has('Numpad7')) { dx = -1; dy = -1; }
+        if (this.pressedKeys.has(this.keyConfig.upRight) || this.pressedKeys.has('Numpad9')) { dx = 1; dy = -1; }
+        if (this.pressedKeys.has(this.keyConfig.downLeft) || this.pressedKeys.has('Numpad1')) { dx = -1; dy = 1; }
+        if (this.pressedKeys.has(this.keyConfig.downRight) || this.pressedKeys.has('Numpad3')) { dx = 1; dy = 1; }
+
+        if (dx !== 0 || dy !== 0) {
+            // 正規化 (dx, dy は -1, 0, 1 のいずれか)
+            if (dx > 0) dx = 1;
+            if (dx < 0) dx = -1;
+            if (dy > 0) dy = 1;
+            if (dy < 0) dy = -1;
+
+            this.game.updateThrowEquipTarget(dx, dy);
+        }
+    }
+
     handleKeyUp(e) {
         this.pressedKeys.delete(e.code);
 
@@ -141,6 +181,13 @@ export class InputManager {
         // Bボタンが離されたらフラグをリセット
         if (e.code === this.keyConfig.buttonB) {
             this.bButtonPressed = false;
+        }
+        // Lボタンが離されたら投擲実行
+        if (e.code === this.keyConfig.buttonL) {
+            if (this.lButtonPressed && this.game.state === 'throw_equip_aiming') {
+                this.game.executeThrowEquip();
+            }
+            this.lButtonPressed = false;
         }
     }
 
@@ -197,6 +244,16 @@ export class InputManager {
         else if (key === this.keyConfig.buttonR) {
             this.rButtonPressed = true;
             return; // アクションは発生させない
+        }
+        // Lボタン(Q): 投げ装備照準モード開始
+        else if (key === this.keyConfig.buttonL && !this.lButtonPressed) {
+            this.lButtonPressed = true;
+            if (this.game.player.throwEquip) {
+                this.game.startThrowEquipAiming();
+            } else {
+                this.game.display.showMessage('投げ装備が設定されていません。');
+            }
+            return;
         }
         // Aボタン(Z): 休憩 + 探索 (ゲームパッド用統合アクション)
         else if (key === this.keyConfig.buttonA) {

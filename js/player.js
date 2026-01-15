@@ -30,6 +30,10 @@ export class Player {
         this.equippedArmor = null;
         this.leftRing = null;   // 左手の指輪
         this.rightRing = null;  // 右手の指輪
+        this.throwEquip = null; // 投げ装備
+
+        // 最後の移動方向（投げ装備用）初期値: 下向き
+        this.lastMoveDirection = { dx: 0, dy: 1 };
 
         // HP回復用カウンタ (move.c heal())
         this.healCounter = 0;

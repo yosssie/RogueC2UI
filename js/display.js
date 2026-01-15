@@ -250,15 +250,15 @@ Mon:${nearbyMonsters}`;
         } else {
             inventory.forEach((item, index) => {
                 const li = document.createElement('li');
-                // アイテムID (a-z) を表示
-                let char = String.fromCharCode(97 + index);
-                if (item._isAtFeet || item._isStairs) {
-                    char = 'z';
-                }
 
                 let name = item.getDisplayName();
-                let statusStr = '';
 
+                // ステータス文字列構築: "XX Y Z" 形式 (4文字)
+                // XX: 装備状態 (2文字)
+                // Y: 投げ装備 (1文字)
+                // Z: 呪い/守り (1文字)
+
+                // 装備状態 (2文字)
                 let equipStr = '  ';
                 if (player) {
                     if (player.weapon === item || player.equippedArmor === item) {
@@ -270,18 +270,22 @@ Mon:${nearbyMonsters}`;
                     }
                 }
 
+                // 投げ装備 (1文字)
+                let throwStr = ' ';
+                if (player && player.throwEquip === item) {
+                    throwStr = 'T';
+                }
+
+                // 呪い/守り (1文字)
                 let curseStr = ' ';
                 if (item.cursed && item.identified) {
                     curseStr = '!';
                 } else if (item.type === 'armor' && item.protected) {
-                    // 防具が保護されている場合は '*' を表示 (ユーザー要望)
                     curseStr = '*';
                 }
 
-                // ステータス文字列構築: "XX Y"形式 (XX:装備, Y:呪い)
-                // 例: "EL !", "E  !", "   !"
-                // !の位置は常に4文字目になる
-                statusStr = `${equipStr} ${curseStr}`;
+                // ステータス文字列結合: "EL T!" のような4文字
+                const statusStr = `${equipStr}${throwStr}${curseStr}`;
 
                 // クラス追加 (CSSで下寄せにするため)
                 if (item._isAtFeet || item._isStairs) {
@@ -314,17 +318,11 @@ Mon:${nearbyMonsters}`;
                     }
                 }
 
-                // 要素構築
-                // ID
-                const idSpan = document.createElement('span');
-                idSpan.textContent = `${char}) `;
-                li.appendChild(idSpan);
+                // 要素構築 (アルファベットIDは削除)
 
                 // ステータスエリア (固定幅)
                 const statusSpan = document.createElement('span');
                 statusSpan.classList.add('item-status');
-                // ステータスがない場合でもスペースを確保するために何かしら入れるか、CSSでmin-widthを指定する
-                // ここでは中身を入れる
                 statusSpan.textContent = statusStr;
                 li.appendChild(statusSpan);
 

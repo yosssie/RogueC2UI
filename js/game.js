@@ -423,7 +423,14 @@ export class Game {
                     else if (rand < 88) type = ':'; // 食料 5
                     else type = '=';                // 指輪 3 (残り)
 
-                    this.items.push(new Item(type, x, y));
+                    const item = new Item(type, x, y);
+
+                    // オリジナルRogue準拠: 投擲武器は3-15個の束で生成 (object.c gr_weapon line 467-470)
+                    if (item.type === 'weapon' && ['arrow', 'dart', 'shuriken', 'dagger'].includes(item.id)) {
+                        item.quantity = 3 + Math.floor(Math.random() * 13);
+                    }
+
+                    this.items.push(item);
                     spawnedCount++;
                 }
             }
@@ -808,6 +815,13 @@ export class Game {
                 // spawnItemsと同じ判定を使用
                 if (level.isWalkable(c, r) && level.getTile(c, r) !== '+' && !this.isPositionOccupied(c, r)) {
                     const item = new Item(type, c, r);
+
+                    // オリジナルRogue準拠: 投擲武器は3-15個の束で生成
+                    if (item.type === 'weapon' && ['arrow', 'dart', 'shuriken', 'dagger'].includes(item.id)) {
+                        item.quantity = 3 + Math.floor(Math.random() * 13);
+                    }
+
+                    this.items.push(item);
                     this.items.push(item);
                     itemsPlaced++;
                     placed = true;
@@ -977,6 +991,9 @@ export class Game {
 
         this.player.x = newX;
         this.player.y = newY;
+
+        // 最後の移動方向を記録（投げ装備用）
+        this.player.lastMoveDirection = { dx, dy };
 
         // 5. アイテム処理 (pick_up)
         if (pickup) {
@@ -1683,7 +1700,7 @@ export class Game {
         this.level.updateVisibility(this.player.x, this.player.y);
 
         let targetInfo = null;
-        if (this.state === 'targeting' && this.targetDirection) {
+        if ((this.state === 'targeting' || this.state === 'throw_equip_aiming') && this.targetDirection) {
             targetInfo = {
                 x: this.player.x + this.targetDirection.x,
                 y: this.player.y + this.targetDirection.y
@@ -1943,6 +1960,10 @@ export class Game {
         // 共通アクション
         this.subMenuOptions.push({ label: '置く', action: 'drop' });
         this.subMenuOptions.push({ label: '投げる', action: 'throw' });
+
+        // 投げ装備 (トグル式)
+        this.subMenuOptions.push({ label: '投げ装備', action: 'toggle_throw_equip' });
+
         this.subMenuOptions.push({ label: 'やめる', action: 'cancel' });
 
         // 表示位置計算 (選択中アイテムの高さに合わせる)
@@ -2070,6 +2091,21 @@ export class Game {
                 this.closeSubMenu();
                 this.pendingAction = 'zap'; // アクションタイプを記録
                 this.startTargeting(this.inventoryIndex);
+                break;
+            case 'toggle_throw_equip':
+                // 投げ装備のトグル処理
+                if (this.player.throwEquip === item) {
+                    // 既に投げ装備中 → 解除
+                    this.player.throwEquip = null;
+                    this.display.showMessage(item.getDisplayName() + 'を投げ装備から外した。');
+                } else {
+                    // 投げ装備に設定
+                    this.player.throwEquip = item;
+                    this.display.showMessage(item.getDisplayName() + 'を投げ装備にした。');
+                }
+                // サブメニューとインベントリを閉じる
+                this.closeSubMenu();
+                this.closeInventory();
                 break;
             case 'cancel':
             case 'none':
@@ -2204,8 +2240,11 @@ export class Game {
     startTargeting(itemIndex) {
         this.state = 'targeting';
         this.targetingItemIndex = itemIndex;
-        // 初期ターゲットは下方向
-        this.targetDirection = { x: 0, y: 1 };
+        // 初期ターゲットは向いている方向(最後の移動方向)
+        this.targetDirection = {
+            x: this.player.lastMoveDirection.dx,
+            y: this.player.lastMoveDirection.dy
+        };
         this.display.showMessage('方角は？');
         this.updateDisplay();
     }
@@ -2225,6 +2264,12 @@ export class Game {
 
         this.state = 'playing'; // 先に戻す(processTurnでの再描画時にカーソルを消すため)
 
+        // アクションを実行した方向にプレイヤーの向きを更新
+        this.player.lastMoveDirection = {
+            dx: this.targetDirection.x,
+            dy: this.targetDirection.y
+        };
+
         if (this.pendingAction === 'zap') {
             this.zapWand(index);
         } else {
@@ -2232,6 +2277,64 @@ export class Game {
         }
 
         this.pendingAction = null; // リセット
+    }
+
+    // 投げ装備照準モード開始
+    startThrowEquipAiming() {
+        if (!this.player.throwEquip) {
+            this.display.showMessage('投げ装備が設定されていません。');
+            return;
+        }
+
+        this.state = 'throw_equip_aiming';
+        // 最後の移動方向を初期ターゲットに使用
+        this.targetDirection = {
+            x: this.player.lastMoveDirection.dx,
+            y: this.player.lastMoveDirection.dy
+        };
+        this.display.showMessage('Lボタンを離すと投擲 (方向キーで照準変更)');
+        this.updateDisplay();
+    }
+
+    // 投げ装備ターゲット更新
+    updateThrowEquipTarget(dx, dy) {
+        if (dx === 0 && dy === 0) return;
+        this.targetDirection = { x: dx, y: dy };
+        this.updateDisplay();
+    }
+
+    // 投げ装備キャンセル
+    cancelThrowEquipAiming() {
+        this.state = 'playing';
+        this.display.showMessage('キャンセルしました。');
+        this.display.updateStatus(this.player, this.currentFloor);
+        this.updateDisplay();
+    }
+
+    // 投げ装備実行
+    executeThrowEquip() {
+        if (!this.player.throwEquip) {
+            this.state = 'playing';
+            this.updateDisplay();
+            return;
+        }
+
+        // 投げ装備アイテムのインデックスを取得
+        const itemIndex = this.player.inventory.indexOf(this.player.throwEquip);
+        if (itemIndex === -1) {
+            this.state = 'playing';
+            this.updateDisplay();
+            return;
+        }
+
+        // 投げた方向にプレイヤーの向きを更新
+        this.player.lastMoveDirection = {
+            dx: this.targetDirection.x,
+            dy: this.targetDirection.y
+        };
+
+        this.state = 'playing'; // 先に戻す
+        this.throwItem(itemIndex); // 既存の投擲処理を使用
     }
 
     async zapWand(index) {
@@ -2280,11 +2383,17 @@ export class Game {
 
         // スタック処理: 1個だけ投げる
         if (item.quantity > 1) {
+            // 2個以上ある場合: 1個減らしてクローンを投げる
             item.quantity--;
             thrownItem = item.clone();
         } else {
-            // インベントリから削除
+            // 最後の1個の場合: インベントリから削除
             this.player.inventory.splice(index, 1);
+
+            // 投げ装備が削除されたアイテムだった場合は解除
+            if (this.player.throwEquip === item) {
+                this.player.throwEquip = null;
+            }
         }
 
         this.display.showMessage(`${thrownItem.getDisplayName()}を投げた！`);
