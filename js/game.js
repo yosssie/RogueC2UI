@@ -35,6 +35,7 @@ export class Game {
         this.state = 'title'; // title, playing, menu, config, gameover
         this.display = new Display();
         this.input = new InputManager(this);
+
         this.saveManager = new SaveManager();
         this.scoreManager = new ScoreManager(this); // スコア管理
         this.trapManager = new TrapManager(this); // 罠管理
@@ -73,24 +74,25 @@ export class Game {
     }
 
     waitForStart() {
-        console.log('⏳ Waiting for Enter or D key... (state:', this.state, ')');
-        const handleStart = (e) => {
-            console.log('🔑 Key pressed:', e.key, 'State:', this.state);
-            if (this.state === 'title') {
-                if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter') {
-                    console.log('✅ Starting normal game!');
-                    document.removeEventListener('keydown', handleStart);
-                    this.debugMode = false;
-                    this.startNewGame();
-                } else if (e.key === 'd' || e.key === 'D') {
-                    console.log('🔧 Starting debug game!');
-                    document.removeEventListener('keydown', handleStart);
-                    this.debugMode = true;
-                    this.startNewGame();
-                }
-            }
-        };
-        document.addEventListener('keydown', handleStart);
+        console.log('⏳ Waiting for input... (state:', this.state, ')');
+    }
+
+    handleTitleInput(e) {
+        if (this.state !== 'title') return;
+
+        const code = e.code;
+        // Aボタンで通常スタート
+        if (code === this.input.keyConfig.buttonA) {
+            console.log('✅ Starting normal game!');
+            this.debugMode = false;
+            this.startNewGame();
+        }
+        // Dキーでデバッグスタート
+        else if (e.key === 'd' || e.key === 'D') {
+            console.log('🔧 Starting debug game!');
+            this.debugMode = true;
+            this.startNewGame();
+        }
     }
 
     startNewGame() {
@@ -2150,45 +2152,296 @@ export class Game {
     }
 
     closeMenu() {
-        this.state = 'playing';
-        this.display.showScreen('game');
+        if (this.lastState && this.lastState !== 'menu') {
+            this.state = this.lastState;
+        } else {
+            this.state = 'playing';
+        }
+        // 背景のゲーム画面が消えないように、showScreen('game')は呼ばない（あるいは呼んでも良いが、現状維持）
+        // オーバーレイを閉じる
+        this.display.closeMenuOverlay();
+        this.display.closeConfigOverlay();
+    }
+
+    // メニュー操作関連
+    toggleMenu() {
+        if (this.state === 'menu' || this.state === 'config') {
+            this.closeMenu();
+        } else {
+            this.openMenu();
+        }
+    }
+
+    openMenu() {
+        this.lastState = this.state;
+        this.state = 'menu';
+
+        // showScreenを使うと他が消えるので、オーバーレイ専用メソッドを使う
+        this.display.openMenuOverlay();
+
+        // カーソル初期化
+        const items = document.querySelectorAll('#menu-list li');
+        items.forEach(el => el.classList.remove('selected'));
+        if (items.length > 0) items[0].classList.add('selected');
     }
 
     moveMenuCursor(delta) {
-        this.menuIndex = (this.menuIndex + delta + this.menuOptions.length) % this.menuOptions.length;
-        this.display.updateMenuCursor(this.menuIndex);
+        const items = Array.from(document.querySelectorAll('#menu-list li[data-action]'));
+        if (items.length === 0) return;
+
+        let selectedIndex = items.findIndex(el => el.classList.contains('selected'));
+
+        // 見つからない場合は先頭を選択とみなす
+        if (selectedIndex === -1) {
+            items[0].classList.add('selected');
+            return;
+        }
+
+        items[selectedIndex].classList.remove('selected');
+        const nextIndex = (selectedIndex + delta + items.length) % items.length;
+        items[nextIndex].classList.add('selected');
     }
 
     selectMenuOption() {
-        const action = this.menuOptions[this.menuIndex];
+        const selected = document.querySelector('#menu-list li.selected');
+        if (selected) {
+            this.executeMenuAction(selected.dataset.action);
+        }
+    }
 
-        // とりあえずメニューを閉じてからアクション実行
-        // 将来的にはサブメニューを開くかもしれない
-
+    executeMenuAction(action) {
         switch (action) {
-            case 'items':
+            case 'items': // 道具
+            case 'inventory':
                 this.closeMenu();
                 this.showInventory();
                 break;
-            case 'ground':
+            case 'ground': // 足元
+                alert('足元を見る機能は未実装です');
                 this.closeMenu();
-                // 足元チェック
-                const item = this.items.find(i => i.x === this.player.x && i.y === this.player.y);
-                const tile = this.level.getTile(this.player.x, this.player.y);
-                if (item) {
-                    this.display.showMessage(`${item.getDisplayName()} (足元)`);
-                } else if (tile === '%') {
-                    this.display.showMessage(`階段がある。(>キーで降りる)`);
-                } else {
-                    this.display.showMessage(`足元には何もない。`);
-                }
                 break;
-            case 'suspend':
+            case 'suspend': // 中断
+                this.saveManager.save(this);
+                alert('中断セーブしました');
+                this.state = 'title';
+                this.display.showScreen('title');
+                this.waitForStart();
+                break;
+            case 'config':
+                this.state = 'config';
+                // 初期値は「戻る」ボタン (リスト数 + デフォルトボタン分 = length + 1)
+                this.configIndex = this.getKeyConfigMap().length + 1;
+                this.renderKeyConfig();
+                this.display.openConfigOverlay();
+                break;
+            case 'save':
+                this.saveManager.save(this);
+                alert('セーブしました');
                 this.closeMenu();
-                this.display.showMessage('中断機能は未実装です。');
+                break;
+            case 'resume':
+                this.closeMenu();
+                break;
+            case 'quit':
+                this.savedMenuHTML = document.getElementById('menu-list').innerHTML;
+                document.getElementById('menu-list').innerHTML = `
+                    <li style="border:none; cursor:default; background:transparent; padding:0.5rem;">タイトルに戻りますか？</li>
+                    <li data-action="quit_yes" class="selected">はい</li>
+                    <li data-action="quit_no">いいえ</li>
+                `;
+                break;
+            case 'quit_yes':
+                this.display.closeMenuOverlay();
+                this.state = 'title';
+                this.display.showScreen('title');
+                // キー連打による誤開を防ぐため遅延
+                setTimeout(() => {
+                    this.waitForStart();
+                }, 500);
+                this.restoreMenu();
+                break;
+            case 'quit_no':
+                this.restoreMenu();
                 break;
         }
     }
+
+    restoreMenu() {
+        if (this.savedMenuHTML) {
+            document.getElementById('menu-list').innerHTML = this.savedMenuHTML;
+            this.savedMenuHTML = null;
+        }
+    }
+
+    renderKeyConfig() {
+        const list = document.getElementById('key-config-list');
+        if (!list) return;
+        list.innerHTML = '';
+
+        if (typeof this.configIndex === 'undefined') this.configIndex = 0;
+
+        const configMap = this.getKeyConfigMap();
+
+        const currentConfig = this.input.keyConfig;
+
+        configMap.forEach((item, index) => {
+            const keyName = currentConfig[item.key] || '---';
+            const displayKey = this.formatKeyName(keyName);
+
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'config-label';
+            if (item.colorClass) {
+                labelDiv.classList.add(item.colorClass);
+            }
+            labelDiv.textContent = item.label;
+
+            const valueDiv = document.createElement('div');
+            valueDiv.className = 'config-value';
+            if (index === this.configIndex) {
+                valueDiv.classList.add('selected');
+            }
+
+            const keySpan = document.createElement('span');
+            keySpan.className = 'config-key-display';
+            keySpan.textContent = displayKey;
+
+            const changeBtn = document.createElement('button');
+            changeBtn.className = 'config-change-btn';
+            changeBtn.textContent = '変更';
+
+            valueDiv.appendChild(keySpan);
+            valueDiv.appendChild(changeBtn);
+
+            list.appendChild(labelDiv);
+            list.appendChild(valueDiv);
+        });
+
+        // 戻るボタン等の選択状態も更新
+        const defaultBtn = document.getElementById('config-default');
+        if (defaultBtn) {
+            if (this.configIndex === configMap.length) {
+                defaultBtn.classList.add('selected');
+            } else {
+                defaultBtn.classList.remove('selected');
+            }
+        }
+
+        const backBtn = document.getElementById('config-back');
+        if (backBtn) {
+            if (this.configIndex === configMap.length + 1) {
+                backBtn.classList.add('selected');
+            } else {
+                backBtn.classList.remove('selected');
+            }
+        }
+    }
+
+    moveConfigCursor(delta) {
+        const values = Array.from(document.querySelectorAll('#key-config-list .config-value'));
+        const defaultBtn = document.getElementById('config-default');
+        const backBtn = document.getElementById('config-back');
+
+        let items = [...values];
+        if (defaultBtn) items.push(defaultBtn);
+        if (backBtn) items.push(backBtn);
+
+        if (items.length === 0) return;
+
+        // 現在の選択を解除
+        if (this.configIndex >= 0 && this.configIndex < items.length) {
+            items[this.configIndex].classList.remove('selected');
+        }
+
+        this.configIndex = (this.configIndex + delta + items.length) % items.length;
+
+        // 新しい選択を設定
+        items[this.configIndex].classList.add('selected');
+    }
+
+    selectConfigOption() {
+        const values = document.querySelectorAll('#key-config-list .config-value');
+        if (this.configIndex < values.length) {
+            const configMap = this.getKeyConfigMap();
+            const targetKey = configMap[this.configIndex].key;
+            this.startKeyBinding(targetKey);
+        } else if (values.length > 0 && this.configIndex === values.length) {
+            // デフォルトに戻す (確認なし)
+            this.resetKeyConfig();
+        } else {
+            // 戻る
+            this.closeConfig();
+        }
+    }
+
+    resetKeyConfig() {
+        this.input.resetKeyConfig();
+        this.renderKeyConfig();
+    }
+
+    getKeyConfigMap() {
+        return [
+            { key: 'buttonA', label: 'Ａボタン', colorClass: 'btn-a' },
+            { key: 'buttonB', label: 'Ｂボタン', colorClass: 'btn-b' },
+            { key: 'buttonX', label: 'Ｘボタン', colorClass: 'btn-x' },
+            { key: 'buttonY', label: 'Ｙボタン', colorClass: 'btn-y' },
+            { key: 'buttonL', label: 'Ｌボタン', colorClass: 'btn-lr' },
+            { key: 'buttonR', label: 'Ｒボタン', colorClass: 'btn-lr' },
+            { key: 'select', label: 'ＳＥＬＥＣＴボタン', colorClass: 'btn-lr' },
+            { key: 'start', label: 'ＳＴＡＲＴボタン', colorClass: 'btn-lr' }
+        ];
+    }
+
+    startKeyBinding(targetKey) {
+        this.bindingTargetKey = targetKey;
+        this.bindingTempCode = this.input.keyConfig[targetKey];
+        this.state = 'config_binding';
+        this.updateBindingUI();
+    }
+
+    updateBindingUI() {
+        document.querySelectorAll('.config-key-display').forEach(el => el.classList.remove('binding'));
+        const values = document.querySelectorAll('#key-config-list .config-value');
+        if (this.configIndex < values.length) {
+            const keyDisplay = values[this.configIndex].querySelector('.config-key-display');
+            if (keyDisplay) {
+                keyDisplay.classList.add('binding');
+                keyDisplay.textContent = this.formatKeyName(this.bindingTempCode);
+            }
+        }
+    }
+
+    finishKeyBinding(save) {
+        if (save) {
+            this.input.keyConfig[this.bindingTargetKey] = this.bindingTempCode;
+            this.input.saveKeyConfig();
+        }
+        this.state = 'config';
+        this.bindingTargetKey = null;
+        this.bindingTempCode = null;
+        this.renderKeyConfig();
+    }
+
+    closeConfig() {
+        this.display.closeConfigOverlay();
+        this.state = 'menu';
+        // メニューオーバーレイを表示（ゲーム画面は消さない）
+        if (this.display.openMenuOverlay) {
+            this.display.openMenuOverlay();
+        } else {
+            this.display.showScreen('menu');
+        }
+    }
+
+    formatKeyName(code) {
+        if (!code) return '';
+        return code
+            .replace('Key', '')
+            .replace('Arrow', '')
+            .replace('Digit', '')
+            .replace('Numpad', 'Num');
+    }
+
+
 
     showInventory() {
         // メッセージ表示は廃止し、インベントリ画面を開く
@@ -3080,7 +3333,7 @@ export class Game {
 
     waitForSelling() {
         const handleKey = (e) => {
-            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+            if (e.code === this.input.keyConfig.buttonA || e.key === ' ') {
                 document.removeEventListener('keydown', handleKey);
                 this.showSellingScreen();
             }
@@ -3103,7 +3356,7 @@ export class Game {
 
     waitForFinish() {
         const handleKey = (e) => {
-            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+            if (e.code === this.input.keyConfig.buttonA || e.key === ' ') {
                 document.removeEventListener('keydown', handleKey);
                 this.finishGame();
             }
@@ -3130,7 +3383,7 @@ export class Game {
 
     waitForTitleFromRanking() {
         const handleKey = (e) => {
-            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+            if (e.code === this.input.keyConfig.buttonA || e.key === ' ') {
                 document.removeEventListener('keydown', handleKey);
                 this.state = 'title';
                 this.display.showScreen('title');
@@ -3234,7 +3487,7 @@ export class Game {
     waitForRanking() {
 
         const handleKey = (e) => {
-            if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter') {
+            if (e.code === this.input.keyConfig.buttonA) {
                 document.removeEventListener('keydown', handleKey);
 
                 // 現在gameover画面ならランキングへ、ranking画面ならタイトルへ
@@ -3254,9 +3507,27 @@ export class Game {
         };
         document.addEventListener('keydown', handleKey);
     }
+    handleTitleInput(e) {
+        if (this.state !== 'title') return;
+
+        const code = e.code;
+        if (code === this.input.keyConfig.buttonA || code === 'Enter') {
+            console.log('✅ Starting normal game!');
+            this.debugMode = false;
+            this.startNewGame();
+        } else if (e.key === 'd' || e.key === 'D') {
+            console.log('🔧 Starting debug game!');
+            this.debugMode = true;
+            this.startNewGame();
+        }
+    }
 }
 
 // ゲーム開始
 window.addEventListener('DOMContentLoaded', () => {
+    if (window.game) {
+        console.warn('⚠️ Game already initialized! Skipping duplicate initialization.');
+        return;
+    }
     window.game = new Game();
 });

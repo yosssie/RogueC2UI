@@ -569,6 +569,35 @@ Mon:${nearbyMonsters}`;
         if (submenu) submenu.classList.add('hidden');
     }
 
+    // メニューオーバーレイ関連
+    openMenuOverlay() {
+        const menuScreen = document.getElementById('menu-screen');
+        if (menuScreen) {
+            menuScreen.classList.add('active');
+        }
+    }
+
+    closeMenuOverlay() {
+        const menuScreen = document.getElementById('menu-screen');
+        if (menuScreen) {
+            menuScreen.classList.remove('active');
+        }
+    }
+
+    openConfigOverlay() {
+        const configScreen = document.getElementById('config-screen');
+        if (configScreen) {
+            configScreen.classList.add('active');
+        }
+    }
+
+    closeConfigOverlay() {
+        const configScreen = document.getElementById('config-screen');
+        if (configScreen) {
+            configScreen.classList.remove('active');
+        }
+    }
+
     updateStatus(player, floor) {
         this.statusLevel.textContent = `Level: ${floor}`;
         this.statusGold.textContent = `Gold: ${player.gold}`;

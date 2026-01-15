@@ -116,9 +116,9 @@
         <div class="menu-content">
             <h2>メニュー</h2>
             <ul id="menu-list">
-                <li data-action="items" class="selected">道具</li>
-                <li data-action="ground">足元</li>
-                <li data-action="suspend">中断</li>
+                <li data-action="config" class="selected">キー設定</li>
+                <li data-action="quit">タイトルへ戻る</li>
+                <li data-action="resume">閉じる</li>
             </ul>
         </div>
     </div>
@@ -127,8 +127,13 @@
 
     <div id="config-screen" class="screen">
         <div class="menu-content">
-            <h2>キーコンフィグ</h2>
+            <h2>キー設定</h2>
             <div id="key-config-list"></div>
+            <div class="config-instruction">
+                変更したいボタンを選択しEnterキーを押し、<br>
+                変更後のキーを押したあと再度Enterキーを押してください
+            </div>
+            <button id="config-default">デフォルトに戻す</button>
             <button id="config-back">戻る</button>
         </div>
     </div>

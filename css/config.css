@@ -1,0 +1,31 @@
+/* キー設定画面のスタイル */
+#key-config-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px 20px;
+    width: 100%;
+    margin-bottom: 2rem;
+    padding: 0 2rem;
+}
+
+.config-label {
+    text-align: right;
+    font-size: 1.2rem;
+    align-self: center;
+}
+
+.config-value {
+    text-align: left;
+    align-self: center;
+}
+
+.config-key-display {
+    display: inline-block;
+    border: 1px solid #aaa;
+    padding: 4px 12px;
+    min-width: 80px;
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-family: monospace;
+}
