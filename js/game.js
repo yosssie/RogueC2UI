@@ -531,21 +531,10 @@ export class Game {
             this.display.archiveMessages();
 
             // 睡眠・凍結チェック (ASLEEP/FREEZE)
+            // 睡眠・凍結チェック (ASLEEP/FREEZE)
+            // キー入力があった場合など、ここに来たら自動進行を開始する
             if (this.player.status.sleep > 0) {
-                this.player.status.sleep--;
-
-                if (this.player.status.sleep <= 0) {
-                    this.display.showMessage("再び動けるようになった。");
-                }
-
-                // 凍結解除メッセージはここでは出さず、行動不能メッセージを出すかどうか
-                // オリジナルRogueでは凍結中は "You cannot move" 等のメッセージは出ず、
-                // モンスターが動くだけだが、何が起きているか分かるようにメッセージを出すのもあり。
-                // 今回はシンプルに何も出さずにターンを進める（オリジナル準拠）。
-                // ただし、もしsleepが切れたらメッセージを出すと親切。
-
-                await this.processTurn();
-                this.skipTurnProcessing = false;
+                await this.takeNap();
                 return;
             }
 
@@ -667,6 +656,16 @@ export class Game {
                 case 'debug_descend':
                     this.nextLevel();
                     return;
+                case 'debug_levelup':
+                    // 次のレベルに必要な経験値を計算して付与
+                    const nextExp = this.player.getExpForNextLevel();
+                    const diff = nextExp - this.player.exp;
+                    if (diff > 0) {
+                        this.player.gainExp(diff);
+                        this.display.showMessage(`レベルアップしました(Debug): Lv.${this.player.level}`);
+                    }
+                    this.updateDisplay();
+                    return;
                 case 'debug':
                     // ゲーム中デバッグモード切り替え
                     this.inGameDebugMode = !this.inGameDebugMode;
@@ -688,10 +687,53 @@ export class Game {
                 const isFast = this.player.status && this.player.status.fast > 0;
                 await this.processTurn(isFast);
             }
+            this.updateDisplay();
+
+            // ターン終了後、もし眠っていたら自動進行
+            if (this.player.status.sleep > 0) {
+                await this.takeNap();
+            }
+
             this.skipTurnProcessing = false; // リセット
         } finally {
             this.isProcessing = false;
         }
+    }
+
+    async takeNap() {
+        // sleep > 0 の間ループ (自動進行)
+        while (this.player.status.sleep > 0) {
+            await this.wait(200);
+
+            // ターン経過
+            // モンスター攻撃等で死ぬ可能性があるのでチェック
+            if (this.player.hp <= 0) break;
+
+            // sleep減算 (handlePlayerActionで行っていた処理をここで行う)
+            // processTurn内では行わないので、ループ内で手動で減らす
+            this.player.status.sleep--;
+
+            // 画面更新 (残りターン数等)
+            this.updateDisplay();
+
+            // ターン処理 (モンスター移動等)
+            await this.processTurn();
+
+            if (this.player.hp <= 0) break;
+        }
+
+        // 完了処理
+        this.player.status.sleep = 0;
+        if (this.player.status.isFrozen) {
+            this.display.showMessage('凍結が解けた。');
+            this.player.status.isFrozen = false;
+        } else {
+            this.display.showMessage('目が覚めた。');
+        }
+        this.updateDisplay();
+
+        // 自動進行終了後のフラグリセット
+        this.skipTurnProcessing = false;
     }
 
     wait(ms) {
@@ -968,13 +1010,13 @@ export class Game {
         // 2. 状態異常チェック (held, bear_trap)
         // モンスターがいる場合は「攻撃」のみ可能
         const monster = this.monsters.find(m => m.x === newX && m.y === newY);
-        if (this.player.held || this.trapManager.bearTrapTurns > 0) {
+        if (this.player.status.held || this.trapManager.bearTrapTurns > 0) {
             if (!monster) {
                 // 熊の罠チェック (isBearTrapped内でターン経過処理あり)
                 if (this.trapManager.isBearTrapped()) {
                     return true; // ターン消費
                 }
-                if (this.player.held) {
+                if (this.player.status.held) {
                     this.display.showMessage(Mesg[67]);
                     return true; // ターン消費
                 }
@@ -1736,7 +1778,7 @@ export class Game {
         }
 
         this.display.renderDungeon(this.level, this.player, this.monsters, this.items, targetInfo, this.trapManager, this.inGameDebugMode);
-        this.display.updateStatus(this.player, this.currentFloor);
+        this.display.updateStatus(this);
 
         // インベントリ更新: 常にUI用リスト（足元含む）を表示
         const uiList = this.getUIInventoryList();
@@ -2604,7 +2646,7 @@ export class Game {
     cancelThrowEquipAiming() {
         this.state = 'playing';
         this.display.showMessage('キャンセルしました。');
-        this.display.updateStatus(this.player, this.currentFloor);
+        this.display.updateStatus(this);
         this.updateDisplay();
     }
 
@@ -3129,8 +3171,8 @@ export class Game {
                     }
 
                     // 拘束解除
-                    if (this.player.held) {
-                        this.player.held = false;
+                    if (this.player.status.held) {
+                        this.player.status.held = false;
                         message += ' (拘束が解けた)';
                     }
                 }
@@ -3369,7 +3411,7 @@ export class Game {
         // 多重実行防止ガード
         if (this.state !== 'selling') return;
 
-        this.state = 'gameover'; // 一旦gameover状態にする（整合性のため）
+        this.state = 'ranking'; // ランキング画面へ遷移
 
         // 勝利として記録 (表示は抑制: suppressDisplay=true)
         const rank = this.scoreManager.killedBy(null, this.scoreManager.DEATH_CAUSES.WIN, true);
@@ -3377,21 +3419,11 @@ export class Game {
         // ランキング画面を即時表示
         this.scoreManager.showRanking(rank);
 
-        // ランキング画面からタイトルへ戻る待機処理
-        this.waitForTitleFromRanking();
+        // ランキング画面からタイトルへ戻る待機処理はInputManagerに委譲
     }
 
     waitForTitleFromRanking() {
-        const handleKey = (e) => {
-            if (e.code === this.input.keyConfig.buttonA || e.key === ' ') {
-                document.removeEventListener('keydown', handleKey);
-                this.state = 'title';
-                this.display.showScreen('title');
-                this.waitForStart();
-            }
-        };
-        // 連打防止のため少し遅らせて登録
-        setTimeout(() => document.addEventListener('keydown', handleKey), 500);
+        // 入力待ちはInputManagerに委譲するため、ここでは何もしない
     }
 
     gameOver(monster = null, cause = null) {
@@ -3484,28 +3516,28 @@ export class Game {
         return false;
     }
 
+    handleGameoverInput(e) {
+        // Aボタン or Enter or Space でランキングへ
+        if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+            this.state = 'ranking';
+            // 最新のスコアランクを探してハイライト
+            const scores = this.scoreManager.getScores();
+            const rank = scores.findIndex(s => s.timestamp === scores[0]?.timestamp);
+            this.scoreManager.showRanking(rank >= 0 ? rank : -1);
+        }
+    }
+
+    handleRankingInput(e) {
+        // Aボタン or Enter or Space でタイトルへ
+        if (e.code === this.input.keyConfig.buttonA || e.key === 'Enter' || e.key === ' ') {
+            this.state = 'title';
+            this.display.showScreen('title');
+            this.waitForStart();
+        }
+    }
+
     waitForRanking() {
-
-        const handleKey = (e) => {
-            if (e.code === this.input.keyConfig.buttonA) {
-                document.removeEventListener('keydown', handleKey);
-
-                // 現在gameover画面ならランキングへ、ranking画面ならタイトルへ
-                if (this.state === 'gameover') {
-                    this.state = 'ranking';
-                    const rank = this.scoreManager.getScores().findIndex(s =>
-                        s.timestamp === this.scoreManager.getScores()[0]?.timestamp
-                    );
-                    this.scoreManager.showRanking(rank >= 0 ? rank : -1);
-                    this.waitForRanking(); // 再度待機
-                } else {
-                    this.state = 'title';
-                    this.display.showScreen('title');
-                    this.waitForStart();
-                }
-            }
-        };
-        document.addEventListener('keydown', handleKey);
+        // 入力待ちはInputManagerに委譲するため、ここでは何もしない
     }
     handleTitleInput(e) {
         if (this.state !== 'title') return;

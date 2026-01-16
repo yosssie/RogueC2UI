@@ -191,11 +191,11 @@ export class TrapManager {
         // ランダムに2-5ターン (use.c take_a_nap: get_rand(2, 5))
         const sleepTurns = 2 + Math.floor(Math.random() * 4);
 
-        for (let i = 0; i < sleepTurns; i++) {
-            await this.game.wait(200); // ウェイト
-            await this.game.processTurn();
-            if (this.game.player.hp <= 0) return;
-        }
+        // アイコン表示用に sleep ステータスを設定
+        this.game.player.status.sleep = sleepTurns;
+
+        await this.game.takeNap();
+
         this.game.display.showMessage('目が覚めた。');
         // 既にターン経過処理を行ったので、呼び出し元のmovePlayerによるprocessTurnはスキップする
         this.game.skipTurnProcessing = true;

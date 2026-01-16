@@ -316,6 +316,7 @@ body {
 }
 
 /* ステータスバー */
+/* ステータスバー */
 #status-bar {
     background-color: transparent;
     border: none;
@@ -323,12 +324,35 @@ body {
     border-top: 1px solid var(--border-color);
     /* 上に区切り線 */
     padding: 0.5rem 0;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: nowrap;
-    /* 折り返しさせない */
-    gap: 2rem;
+
+    /* 位置固定のため Grid レイアウトに変更 */
+    display: grid;
+    /* 
+       階:XX (5em)
+       金貨:XXXXXX (10em)
+       Hp:XXX(XXX) (12em)
+       強さ:XX(XX) (11em)
+       守備:XX (7em)
+       経験:XX/XXXXXXXX (13em)
+       空腹 (3em)
+       状態異常 (残り)
+    */
+    grid-template-columns: 4.5em 9em 11em 10em 6.5em 13em 3em 1fr;
+    align-items: center;
+
     font-size: 1rem;
+    white-space: nowrap;
+    /* 折り返し禁止 */
+    overflow-x: auto;
+    /* 幅が足りない場合はスクロール */
+    /* 幅が足りない場合はスクロール */
+}
+
+#status-conditions {
+    justify-self: end;
+    /* 右端に寄せる */
+    padding-right: 0.5em;
+    /* text-align: right; */
 }
 
 /* インベントリリスト */

@@ -45,9 +45,11 @@ export class Player {
             blind: 0,         // 盲目
             hallucinating: 0, // 幻覚
             sleep: 0,         // 睡眠・凍結 (行動不能)
-            levitate: 0,      // 浮遊
+            levitate: 0,      // 浮遊残りターン
             fast: 0,          // 加速
             slow: 0,          // 鈍化
+            bearTrap: 0,      // これはTrapManagerで管理するが、一応予約
+            isFrozen: false,  // 凍結状態（sleepと併用、trueなら❄️表示）
 
             // 以下はフラグまたは特殊管理
             held: false,      // 金縛り (Flytrap等)
@@ -193,7 +195,7 @@ export class Player {
         if (level <= 1) return 0;
         const index = level - 2;
         if (index < 0) return 0;
-        if (index >= Player.LEVEL_POINTS.length) return Player.LEVEL_POINTS[Player.LEVEL_POINTS.length - 1];
+        if (index >= Player.LEVEL_POINTS.length) return Infinity;
         return Player.LEVEL_POINTS[index];
     }
 

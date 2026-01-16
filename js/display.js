@@ -36,6 +36,8 @@ export class Display {
         this.statusStr = document.getElementById('status-str');
         this.statusArm = document.getElementById('status-arm');
         this.statusExp = document.getElementById('status-exp');
+        this.statusHunger = document.getElementById('status-hunger');
+        this.statusConditions = document.getElementById('status-conditions');
 
         this.debugInfo = document.getElementById('debug-info');
         this.debugMode = false;
@@ -598,13 +600,56 @@ Mon:${nearbyMonsters}`;
         }
     }
 
-    updateStatus(player, floor) {
-        this.statusLevel.textContent = `Level: ${floor}`;
-        this.statusGold.textContent = `Gold: ${player.gold}`;
-        this.statusHp.textContent = `Hp: ${player.hp}(${player.maxHp})`;
-        this.statusStr.textContent = `Str: ${player.str}(${player.maxStr})`;
-        this.statusArm.textContent = `Arm: ${player.armor}`;
-        this.statusExp.textContent = `Exp: ${player.level}/${player.exp}`;
+    updateStatus(game) {
+        const player = game.player;
+        const floor = game.currentFloor;
+
+        this.statusLevel.textContent = `階: ${floor}`;
+        this.statusGold.textContent = `金貨: ${player.gold}`;
+        this.statusHp.textContent = `体力: ${player.hp}(${player.maxHp})`;
+        this.statusStr.textContent = `強さ: ${player.str}(${player.maxStr})`;
+        this.statusArm.textContent = `守備: ${player.armor}`;
+        this.statusExp.textContent = `経験: ${player.level}/${player.exp}`;
+
+        let hungerText = '';
+        if (player.hunger <= 20) {
+            hungerText = '瀕死'; // Faint (mesg[75])
+            this.statusHunger.style.color = '#ff4444'; // 赤
+        } else if (player.hunger <= 150) {
+            hungerText = '飢餓'; // Weak (mesg[73])
+            this.statusHunger.style.color = '#ff8800'; // オレンジ
+        } else if (player.hunger <= 300) {
+            hungerText = '空腹'; // Hungry (mesg[71])
+            this.statusHunger.style.color = '#ffff44'; // 黄
+        } else {
+            this.statusHunger.style.color = '';
+        }
+        this.statusHunger.textContent = hungerText;
+
+        // 状態異常 (絵文字表示)
+        const conditions = [];
+        const status = player.status;
+        const rm = game.ringManager; // RingManager
+
+        if (status.confused > 0) conditions.push('💫');
+        if (status.blind > 0) conditions.push('🕶️');
+        if (status.hallucinating > 0) conditions.push('🌈');
+        if (status.sleep > 0) {
+            conditions.push(status.isFrozen ? '❄️' : '💤');
+        }
+        // 金縛り (held) または 罠 (bearTrap)
+        if (status.held || (game.trapManager && game.trapManager.bearTrapTurns > 0)) conditions.push('⛓️');
+        if (status.slow > 0) conditions.push('🐢');
+        if (status.fast > 0) conditions.push('🐇');
+        if (status.levitate > 0) conditions.push('🎈');
+        // 透明視認
+        if (status.seeInvisible || (rm && rm.rSeeInvisible)) conditions.push('👁️');
+        // 感知
+        if (status.detectMonster || status.detectObjects) conditions.push('🔍');
+        // 強力 (現在の力が最大を超えている、または指輪で増強されている)
+        if (player.str > player.maxStr || (rm && rm.addStrength !== 0)) conditions.push('💪');
+
+        this.statusConditions.textContent = conditions.join('');
     }
 
     // 炎エフェクト表示 (Original Rogue flame_broil 準拠)

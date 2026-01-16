@@ -61,6 +61,18 @@ export class InputManager {
                 this.handleIdentifyInput(e);
             } else if (state === 'submenu') {
                 this.handleSubMenuInput(e);
+            } else if (state === 'target') {
+                this.handleTargetingInput(e);
+            } else if (state === 'death_message') {
+                this.handleDeathMessageInput(e);
+            } else if (state === 'tombstone' || state === 'gameover') {
+                this.game.handleGameoverInput(e);
+            } else if (state === 'victory') {
+                this.handleVictoryInput(e);
+            } else if (state === 'selling') {
+                this.handleSellingInput(e);
+            } else if (state === 'ranking') {
+                this.game.handleRankingInput(e);
             }
         };
 
@@ -675,6 +687,8 @@ export class InputManager {
             action = { type: 'debug_ascend' };
         } else if (this.game.inGameDebugMode && (key === 'Period' || e.key === '.')) {
             action = { type: 'debug_descend' };
+        } else if (this.game.inGameDebugMode && (key === 'Slash' || e.key === '/')) {
+            action = { type: 'debug_levelup' };
         }
         // 移動(十字キー + Home/End/PageUp/PageDown + テンキー)
         else if (key === this.keyConfig.up || key === 'Numpad8') {

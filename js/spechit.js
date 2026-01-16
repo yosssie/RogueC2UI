@@ -18,9 +18,9 @@ export class SpecialHit {
         }
         if (monster.hasFlag(Monster.FLAGS.HOLDS)) {
             // オリジナルRogue準拠: 浮遊中は拘束されない (spechit.c line 53)
-            if (!game.player.status.levitate && !game.player.held) {
+            if (!game.player.status.levitate && !game.player.status.held) {
                 game.display.showMessage(`${monster.name}に締め上げられた！`);
-                game.player.held = true;
+                game.player.status.held = true;
             }
         }
         if (monster.hasFlag(Monster.FLAGS.FREEZES)) {
@@ -95,6 +95,7 @@ export class SpecialHit {
         game.display.showMessage(Mesg[203]);
 
         // プレイヤーの状態異常を設定
+        game.player.status.isFrozen = true;
         // 加算すると永遠に解けないことがあるので、最大値で更新（延長）
         game.player.status.sleep = Math.max(game.player.status.sleep, turns);
     }
