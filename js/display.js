@@ -248,98 +248,135 @@ Mon:${nearbyMonsters}`;
 
     updateInventory(inventory, player = null, identifyMode = false, cursorIndex = 0) {
         this.inventoryList.innerHTML = '';
-        if (inventory.length === 0) {
-            const emptyItem = document.createElement('li');
-            emptyItem.textContent = '(なし)';
-            emptyItem.style.opacity = '0.5';
-            this.inventoryList.appendChild(emptyItem);
-        } else {
-            inventory.forEach((item, index) => {
-                const li = document.createElement('li');
 
-                let name = item.getDisplayName();
+        // 最大アイテム数 (a-x: 24個)
+        // ユーザー要望: 24個 + 足元(1個) = 25行で固定
+        const MAX_CAPACITY = 24;
 
-                // ステータス文字列構築: "XX Y Z" 形式 (4文字)
-                // XX: 装備状態 (2文字)
-                // Y: 投げ装備 (1文字)
-                // Z: 呪い/守り (1文字)
+        // インベントリから足元アイテムを分離
+        const normalItems = inventory.filter(i => !i._isAtFeet && !i._isStairs);
+        const atFeetItems = inventory.filter(i => i._isAtFeet || i._isStairs);
 
-                // 装備状態 (2文字)
-                let equipStr = '  ';
-                if (player) {
-                    if (player.weapon === item || player.equippedArmor === item) {
-                        equipStr = 'E ';
-                    } else if (player.leftRing === item) {
-                        equipStr = 'EL';
-                    } else if (player.rightRing === item) {
-                        equipStr = 'ER';
-                    }
-                }
+        // 1. 通常アイテム表示 (0 ~ MAX_CAPACITY-1)
+        for (let i = 0; i < MAX_CAPACITY; i++) {
+            const li = document.createElement('li');
 
-                // 投げ装備 (1文字)
-                let throwStr = ' ';
-                if (player && player.throwEquip === item) {
-                    throwStr = 'T';
-                }
+            if (i < normalItems.length) {
+                const item = normalItems[i];
+                // 実際のインデックス（inventory配列内でのインデックス）を探す
+                // ※ cursorIndex は inventory 全体でのインデックスなので、ここでマッチングが必要
+                // ただし表示順が変わるとカーソル移動ロジックと不整合が起きる可能性がある。
+                // Game.jsのカーソルロジックは inventory 配列順。
+                // ここで空行を入れると、inventory配列のインデックスと見た目の行数が一致しなくなる（足元アイテムが最後にある場合、間に空行が入るため）。
+                // Game.jsのopenSubMenuでのY座標計算も、この見た目に合わせる必要がある。
 
-                // 呪い/守り (1文字)
-                let curseStr = ' ';
-                if (item.cursed && item.identified) {
-                    curseStr = '!';
-                } else if (item.type === 'armor' && item.protected) {
-                    curseStr = '*';
-                }
-
-                // ステータス文字列結合: "EL T!" のような4文字
-                const statusStr = `${equipStr}${throwStr}${curseStr}`;
-
-                // クラス追加 (CSSで下寄せにするため)
-                if (item._isAtFeet || item._isStairs) {
-                    li.classList.add('at-feet-item');
-                }
-
-                // 識別モード時、選択中のアイテムは黄色背景
-                if (identifyMode && index === cursorIndex) {
-                    li.style.setProperty('background-color', '#ffff00', 'important');
-                    li.style.color = '#000';
-                }
-
-                // 呪われたアイテムは赤色で表示
-                if (item.cursed && item.identified) {
-                    li.classList.add('cursed-item');
-                }
-
-                // プラスのエンチャント値を持つアイテムは黄色で表示
-                if (item.identified) {
-                    let hasPositiveEnchant = false;
-                    if (item.type === 'weapon' && (item.hitBonus > 0 || item.damageBonus > 0)) {
-                        hasPositiveEnchant = true;
-                    } else if (item.type === 'armor' && item.damageBonus > 0) {
-                        hasPositiveEnchant = true;
-                    } else if (item.type === 'ring' && item.enchantment > 0) {
-                        hasPositiveEnchant = true;
-                    }
-                    if (hasPositiveEnchant && !(identifyMode && index === cursorIndex)) {
-                        li.classList.add('enchanted-item');
-                    }
-                }
-
-                // 要素構築 (アルファベットIDは削除)
-
-                // ステータスエリア (固定幅)
-                const statusSpan = document.createElement('span');
-                statusSpan.classList.add('item-status');
-                statusSpan.textContent = statusStr;
-                li.appendChild(statusSpan);
-
-                // 名前
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = name;
-                li.appendChild(nameSpan);
-
-                this.inventoryList.appendChild(li);
-            });
+                // アイテム描画ロジック (共通化したいがとりあえずコピペで)
+                this.renderInventoryItem(li, item, player, identifyMode, cursorIndex, inventory.indexOf(item));
+            } else {
+                // 空行
+                li.style.visibility = 'hidden'; // 領域は確保するが見えない
+                li.textContent = 'empty'; // 高さ確保のため
+            }
+            this.inventoryList.appendChild(li);
         }
+
+        // 2. 足元アイテム表示 (MAX_CAPACITY 番目 = 25行目)
+        const feetLi = document.createElement('li');
+        if (atFeetItems.length > 0) {
+            const item = atFeetItems[0]; // 足元は常に1つと仮定
+            // 本来のインデックスを渡す
+            this.renderInventoryItem(feetLi, item, player, identifyMode, cursorIndex, inventory.indexOf(item));
+            // スタイル調整 (at-feet-itemクラスがrenderInventoryItemでつくはずだが、margin-top:autoは不要になるかも)
+            // CSSで margin-top: auto がついていると、空行があっても一番下に押し付けられるのでOK
+        } else {
+            // 足元なしの場合も枠は作る？
+            feetLi.style.visibility = 'hidden';
+            feetLi.textContent = 'at feet';
+        }
+        // CSSの .at-feet-item { margin-top: auto } が効くようにクラスをつけるか、
+        // あるいはここでは固定行として出力しているので auto は不要。
+        // リストが既に埋まってるので、単純に追加すれば一番下になる。
+        this.inventoryList.appendChild(feetLi);
+    }
+
+    // アイテム描画ヘルパー
+    renderInventoryItem(li, item, player, identifyMode, cursorIndex, actualIndex) {
+        let name = item.getDisplayName();
+
+        // ステータス文字列構築
+        let equipStr = '  ';
+        if (player) {
+            if (player.weapon === item || player.equippedArmor === item) {
+                equipStr = 'E ';
+            } else if (player.leftRing === item) {
+                equipStr = 'EL';
+            } else if (player.rightRing === item) {
+                equipStr = 'ER';
+            }
+        }
+
+        let throwStr = ' ';
+        if (player && player.throwEquip === item) {
+            throwStr = 'T';
+        }
+
+        let curseStr = ' ';
+        if (item.cursed && item.identified) {
+            curseStr = '!';
+        } else if (item.type === 'armor' && item.protected) {
+            curseStr = '*';
+        }
+
+        const statusStr = `${equipStr}${throwStr}${curseStr}`;
+
+        if (item._isAtFeet || item._isStairs) {
+            li.classList.add('at-feet-item');
+        }
+
+        // カーソル強調
+        if (identifyMode && actualIndex === cursorIndex) {
+            li.style.setProperty('background-color', '#ffff00', 'important');
+            li.style.color = '#000';
+        } else if (actualIndex === cursorIndex) {
+            // 通常メニュー時のカーソル表示もCSSクラスで行う場合
+            // ユーザーのフォーカスロジックはCSSの :hover や InputManager で処理している？
+            // InputManager.handleMenuClick等はない。
+            // CSSの li:hover はある。
+            // キー操作時のハイライトは Game.js 側で updateInventoryCursor を呼んでいるはず。
+            // display.updateInventoryCursor でクラスをつけている。
+            // ここでは初期表示時のクラス付けは不要（あとで updateInventoryCursor が呼ばれるか、自動でつくか）
+            // identifyModeのみ特別扱いされている。
+        }
+
+        if (item.cursed && item.identified) {
+            li.classList.add('cursed-item');
+        }
+
+        if (item.identified) {
+            let hasPositiveEnchant = false;
+            if (item.type === 'weapon' && (item.hitBonus > 0 || item.damageBonus > 0)) {
+                hasPositiveEnchant = true;
+            } else if (item.type === 'armor' && item.damageBonus > 0) {
+                hasPositiveEnchant = true;
+            } else if (item.type === 'ring' && item.enchantment > 0) {
+                hasPositiveEnchant = true;
+            }
+            if (hasPositiveEnchant && !(identifyMode && actualIndex === cursorIndex)) {
+                li.classList.add('enchanted-item');
+            }
+        }
+
+        const statusSpan = document.createElement('span');
+        statusSpan.classList.add('item-status');
+        statusSpan.textContent = statusStr;
+        li.appendChild(statusSpan);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = name;
+        li.appendChild(nameSpan);
+
+        // ID保持 (updateInventoryCursor用)
+        li.dataset.index = actualIndex;
     }
 
     renderDungeon(level, player, monsters, items, targetInfo = null, trapManager = null, debugMode = false) {
@@ -497,8 +534,10 @@ Mon:${nearbyMonsters}`;
 
     updateInventoryCursor(index) {
         const items = Array.from(this.inventoryList.children);
-        items.forEach((item, i) => {
-            if (i === index) {
+        items.forEach((item) => {
+            // dataset.indexで照合（display.updateInventoryで設定済み）
+            // 空のliにはdataset.indexがないので無視される
+            if (item.dataset.index && parseInt(item.dataset.index, 10) === index) {
                 item.classList.add('selected');
                 item.scrollIntoView({ block: 'nearest' });
             } else {
